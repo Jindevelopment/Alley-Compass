@@ -308,6 +308,10 @@ def rank(req: RankRequest, user: CurrentUser = Depends(require_user)) -> RankRes
                 target_fit_score=r.target_fit_score,
                 final_score=r.final_score,
                 score_breakdown=r.breakdown,
+                gu_name=r.gu_name,
+                latitude=r.latitude,
+                longitude=r.longitude,
+                area_m2=r.area_m2,
             )
             for r in top.itertuples()
         ],

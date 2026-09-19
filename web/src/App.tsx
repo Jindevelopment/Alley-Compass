@@ -6,6 +6,7 @@ import { DataStatusCard } from "@/components/DataStatusCard";
 import { DistrictDrawer } from "@/components/detail/DistrictDrawer";
 import { OnboardingChat } from "@/components/OnboardingChat";
 import { RankList } from "@/components/RankList";
+import { RankMap } from "@/components/RankMap";
 import { ResultSummary } from "@/components/ResultSummary";
 import { SiteFooter } from "@/components/SiteFooter";
 import { Button, Card, CardBody, type SelectOption } from "@/components/ui";
@@ -368,7 +369,8 @@ export default function App() {
               <ResultSummary meta={meta} loading={loading} conditions={conditions} />
 
               <div className="mt-5 grid gap-5 lg:grid-cols-12">
-                <div className="lg:col-span-8">
+                <div className="flex flex-col gap-4 lg:col-span-8">
+                  <RankMap ranking={ranking} selectedCode={selectedCode} onSelect={setSelectedCode} />
                   <RankList
                     ranking={ranking}
                     selectedCode={selectedCode}

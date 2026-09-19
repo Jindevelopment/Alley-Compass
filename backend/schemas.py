@@ -26,6 +26,12 @@ class DistrictScore(BaseModel):
     target_fit_score: float
     final_score: float
     score_breakdown: dict
+    """지도 표시용. district_geo.py로 좌표가 채워진 상권만 값이 있다 — 없으면
+    지도에서 그 상권만 빠진다(지어낸 좌표를 만들지 않는다)."""
+    gu_name: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    area_m2: Optional[float] = None
 
 
 class RankResponse(BaseModel):
