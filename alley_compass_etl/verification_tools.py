@@ -140,7 +140,11 @@ def _load_from_supabase() -> pd.DataFrame:
             "district_features_debug.csv 를 쓰세요."
         )
     districts = pd.DataFrame(
-        select_all(supabase, "districts", "id,district_code,district_name")
+        select_all(
+            supabase,
+            "districts",
+            "id,district_code,district_name,gu_name,latitude,longitude,area_m2",
+        )
     )
     businesses = pd.DataFrame(
         select_all(supabase, "business_types", "id,business_code,business_name")

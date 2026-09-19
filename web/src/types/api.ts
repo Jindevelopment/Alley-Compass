@@ -36,6 +36,11 @@ export interface DistrictScore {
   target_fit_score: number;
   final_score: number;
   score_breakdown: ScoreBreakdown;
+  /** 지도 표시용. district_geo.py로 좌표가 채워진 상권만 값이 있다. */
+  gu_name: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  area_m2: number | null;
 }
 
 export interface RankResponse {
