@@ -1,0 +1,52 @@
+# 원본 레포(eungyu124/alley-compass)를 이 레포로 따라가게 한다.
+# 작업은 원본에 올리고, 이 레포는 매시간 원본을 받아 병합만 한다.
+# 이 파일은 이 레포에만 있다. 원본에 올리지 않는다.
+# 바로 반영하려면 Actions 탭 → "원본 레포 동기화" → Run workflow.
+
+name: 원본 레포 동기화
+
+on:
+  schedule:
+    - cron: "0 * * * *"   # 매시간 (UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: 원본 받기
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/eungyu124/alley-compass.git
+          git fetch upstream --prune
+
+      - name: main 병합
+        run: |
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "원본 main 에 새 커밋이 없습니다."
+            exit 0
+          fi
+          git merge --no-edit upstream/main -m "원본 동기화 (eungyu124/alley-compass)"
+          git push origin HEAD:main
+          fi
+          git merge --no-edit upstream/main -m "원본 동기화 (eungyu124/alley-compass)"
+          git push origin HEAD:main
+
+      - name: 다른 브랜치 복사
+        run: |
+          for branch in $(git for-each-ref --format='%(refname:strip=3)' refs/remotes/upstream/ | grep -vxE 'main|HEAD'); do
+            git push --force origin "refs/remotes/upstream/${branch}:refs/heads/${branch}"
+          done
