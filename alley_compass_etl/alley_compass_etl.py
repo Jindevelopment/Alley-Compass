@@ -29,6 +29,7 @@ import math
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
@@ -832,22 +833,76 @@ def select_all(
     table: str,
     columns: str,
     page_size: int = 1000,
+    max_workers: int = 6,
+    filters: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    result: list[dict[str, Any]] = []
-    start = 0
+    """전체 행을 id 구간별로 나눠 병렬 조회한다.
 
-    while True:
-        resp = (
-            supabase.table(table)
-            .select(columns)
-            .range(start, start + page_size - 1)
-            .execute()
-        )
-        data = resp.data or []
-        result.extend(data)
-        if len(data) < page_size:
-            break
-        start += page_size
+    처음엔 OFFSET(.range())으로 페이지를 나눠 순서대로(또는 동시에) 요청했는데,
+    district_features(14만 행 이상)에서 실제로 문제가 났다 — OFFSET이 깊어질수록
+    Postgres가 그 앞의 행을 전부 스캔해야 해서, select("*")처럼 폭이 넓은
+    조회는 뒤쪽 페이지에서 Supabase의 statement_timeout을 넘겨 실패했다
+    (offset 0은 1초, offset 100000은 타임아웃 — 직접 재현해 확인함).
+
+    대신 id(bigint identity, 기본키) 구간으로 나눠서 각 구간을 gt/lte
+    범위 조건으로 직접 조회한다 — 인덱스로 바로 찾아가므로 구간 위치와
+    무관하게 빠르고, 구간마다 완전히 독립적이라 동시에 여러 개를 보내도
+    안전하다.
+
+    max_workers를 낮게 잡은 이유: Render 무료 플랜처럼 CPU가 아주 약한
+    환경(사실상 0.1 vCPU급)에서는 너무 많은 스레드가 서로 자원을 다투다가
+    개별 요청이 오히려 statement_timeout을 넘기는 걸 실제로 겪었다(로컬
+    macOS에선 12로도 문제없었지만 Render에서는 실패했다). 재시도 횟수와
+    대기 시간도 그래서 넉넉히 뒀다.
+
+    filters는 {컬럼: 값} 형태의 등호 조건을 추가로 건다(예: 최신 분기만
+    조회). id 구간은 여전히 테이블 전체 범위 기준으로 나누므로, 필터가
+    걸리면 구간 대부분이 빈 결과를 받는 셈이 되지만 — 인덱스 조건 조회라
+    빈 결과도 빠르고, 애초에 필터를 거는 경우는 결과 자체가 작을 때라
+    문제되지 않는다.
+    """
+
+    def _with_filters(query: Any) -> Any:
+        if filters:
+            for col, val in filters.items():
+                query = query.eq(col, val)
+        return query
+
+    probe = (
+        _with_filters(supabase.table(table).select("id", count="exact"))
+        .order("id", desc=True)
+        .limit(1)
+        .execute()
+    )
+    total = probe.count or 0
+    if total == 0:
+        return []
+    max_id = probe.data[0]["id"] if probe.data else 0
+
+    n_chunks = max(1, math.ceil(max_id / page_size))
+    bounds = [(i * page_size, min((i + 1) * page_size, max_id)) for i in range(n_chunks)]
+
+    def fetch_chunk(bound: tuple[int, int], retries: int = 5) -> list[dict[str, Any]]:
+        lo, hi = bound
+        for attempt in range(retries):
+            try:
+                resp = (
+                    _with_filters(supabase.table(table).select(columns))
+                    .gt("id", lo)
+                    .lte("id", hi)
+                    .execute()
+                )
+                return resp.data or []
+            except Exception:  # noqa: BLE001 — 일시적 부하 등, 마지막 시도면 그대로 올린다
+                if attempt == retries - 1:
+                    raise
+                time.sleep(min(1.5 * (attempt + 1), 6.0))
+        return []  # 도달하지 않음(mypy 안심용)
+
+    result: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        for page in executor.map(fetch_chunk, bounds):
+            result.extend(page)
 
     return result
 

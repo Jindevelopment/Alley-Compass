@@ -6,6 +6,7 @@ import { DataStatusCard } from "@/components/DataStatusCard";
 import { DistrictDrawer } from "@/components/detail/DistrictDrawer";
 import { OnboardingChat } from "@/components/OnboardingChat";
 import { RankList } from "@/components/RankList";
+import { RankMap } from "@/components/RankMap";
 import { ResultSummary } from "@/components/ResultSummary";
 import { SiteFooter } from "@/components/SiteFooter";
 import { Button, Card, CardBody, type SelectOption } from "@/components/ui";
@@ -49,6 +50,11 @@ import type { Conditions } from "@/types/domain";
  * ────────────────────────────────────────────────────────────── */
 
 const TOP_K = 20;
+/** 처음엔 5곳만 보여주고, "더보기"를 누를 때마다 이만큼씩 더 펼친다.
+ * 다 펼친 뒤엔 같은 버튼이 "접기"로 바뀌어 다시 5곳으로 되돌린다.
+ * 서버는 이미 TOP_K(20)까지 계산해서 내려주므로 재호출 없이 펼치고 접는다. */
+const INITIAL_VISIBLE = 5;
+const VISIBLE_STEP = 5;
 
 function changeMessage(
   labelParts: RichParts,
@@ -119,6 +125,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  /** 지금 목록/지도에 펼쳐 보여주는 개수. 새 랭킹 결과가 올 때마다 5개로 되돌린다. */
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
   /** 조건을 한 번이라도 확정해본 적 있는가. 저장된 조건이 있으면(복원) 곧바로 true. */
   const [onboarded, setOnboarded] = useState(false);
 
@@ -205,6 +213,12 @@ export default function App() {
     if (!onboarded || !userId) return;
     saveConditions(userId, conditions);
   }, [onboarded, userId, conditions]);
+
+  // 새 랭킹 결과가 올 때마다 다시 top 5만 보이게 접는다 — 이전 조건에서
+  // "더보기"로 펼쳐뒀던 게 새 결과에도 그대로 펼쳐진 채면 어색하다.
+  useEffect(() => {
+    setVisibleCount(INITIAL_VISIBLE);
+  }, [meta]);
 
   const applyChange = (patch: Partial<Conditions>, labelParts: RichParts, userParts?: RichParts) => {
     const previousTopNames = (meta?.results ?? []).slice(0, 5).map((r) => r.district_name);
@@ -336,6 +350,7 @@ export default function App() {
   };
 
   const ranking = meta?.results ?? [];
+  const visibleRanking = ranking.slice(0, visibleCount);
   const selected = ranking.find((r) => r.district_code === selectedCode) ?? null;
 
   return (
@@ -368,13 +383,34 @@ export default function App() {
               <ResultSummary meta={meta} loading={loading} conditions={conditions} />
 
               <div className="mt-5 grid gap-5 lg:grid-cols-12">
-                <div className="lg:col-span-8">
+                <div className="flex flex-col gap-4 lg:col-span-8">
+                  <RankMap
+                    ranking={visibleRanking}
+                    selectedCode={selectedCode}
+                    onSelect={setSelectedCode}
+                  />
                   <RankList
-                    ranking={ranking}
+                    ranking={visibleRanking}
                     selectedCode={selectedCode}
                     onSelect={setSelectedCode}
                     loading={loading}
                   />
+                  {!loading && ranking.length > INITIAL_VISIBLE ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="self-center"
+                      onClick={() =>
+                        setVisibleCount((c) =>
+                          c < ranking.length ? Math.min(c + VISIBLE_STEP, ranking.length) : INITIAL_VISIBLE,
+                        )
+                      }
+                    >
+                      {visibleCount < ranking.length
+                        ? `더보기 (${ranking.length - visibleCount}곳 더)`
+                        : "접기"}
+                    </Button>
+                  ) : null}
                 </div>
 
                 <aside className="flex flex-col gap-4 lg:col-span-4">

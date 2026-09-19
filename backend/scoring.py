@@ -148,6 +148,16 @@ def rank_districts(
     stability_score = sum(w_avail[k] * available[k] for k in available).round(1)
 
     out = scope[["district_code", "district_name"]].copy()
+
+    # 지도 표시용 — CSV 소스(로컬 개발)에는 이 컬럼들이 아예 없을 수 있고,
+    # Supabase 소스라도 아직 district_geo.py로 보강 안 된 상권은 NaN이다.
+    # 둘 다 None으로 통일해서 내려보낸다(지어낸 좌표를 만들지 않는다).
+    for col in ("gu_name", "latitude", "longitude", "area_m2"):
+        if col not in scope.columns:
+            out[col] = None
+        else:
+            out[col] = scope[col].where(scope[col].notna(), None)
+
     out["stability_score"] = stability_score
     out["target_fit_score"] = demand.round(1)
     # 예산 데이터가 없어 final_score = stability_score (§16 Budget Fit 항은 현재 미반영)
