@@ -1,6 +1,7 @@
 import { Loader2, SendHorizontal } from "lucide-react";
 import { useState } from "react";
 
+import { LogoMark } from "@/components/brand/Logo";
 import { Button, Input } from "@/components/ui";
 
 import { ChatLog, type Message } from "./ChatLog";
@@ -38,12 +39,17 @@ export function OnboardingChat({ messages, onParse, busy, bootLoading }: Onboard
   };
 
   return (
-    <div className="mx-auto flex min-h-[70vh] w-full max-w-xl flex-col justify-center gap-6 px-4 py-10">
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold text-fg">어떤 창업을 준비하고 계세요?</h1>
-        <p className="mt-2 text-sm leading-relaxed text-fg-muted">
-          업종·예산·타깃을 문장으로 편하게 말씀해 주세요. 예: "치킨집 열고 싶은데 예산 3,000만원
-          정도로 어디가 좋을까"
+    <div className="mx-auto flex min-h-[70vh] w-full max-w-xl flex-col justify-center gap-7 px-2 py-10">
+      <div className="flex flex-col items-center text-center">
+        <LogoMark size={64} />
+        <h1 className="mt-5 font-display text-3xl font-bold tracking-[-0.02em] text-fg">
+          어떤 창업을 준비하고 계세요?
+        </h1>
+        <p className="mt-3 max-w-md text-md leading-relaxed text-fg-body">
+          업종·예산·타깃을 문장으로 편하게 말씀해 주세요.
+        </p>
+        <p className="mt-2 max-w-md rounded-xl bg-surface-sunken px-4 py-2.5 text-sm leading-relaxed text-fg-muted">
+          예: “치킨집 열고 싶은데 예산 3,000만원 정도로 어디가 좋을까”
         </p>
       </div>
 
@@ -67,14 +73,15 @@ export function OnboardingChat({ messages, onParse, busy, bootLoading }: Onboard
         <Button
           variant="solid"
           size="lg"
+          className="aspect-square px-0"
           disabled={disabled || !draft.trim()}
           onClick={submit}
           aria-label="시작하기"
         >
           {busy ? (
-            <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+            <Loader2 aria-hidden="true" className="size-5 animate-spin" />
           ) : (
-            <SendHorizontal aria-hidden="true" className="size-4" />
+            <SendHorizontal aria-hidden="true" className="size-5" />
           )}
         </Button>
       </div>

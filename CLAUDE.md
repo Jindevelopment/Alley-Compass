@@ -141,7 +141,9 @@ Claude를 부르지 않으므로 과금이 없다. 백분위는 `verification_to
 - 근거 문장은 HTML 문자열이 아니라 조각 배열(`["점포당 배후수요 ", b("2.9"), " ..."]`)로
   표현하고 `<Rich/>`로 렌더한다. `dangerouslySetInnerHTML`을 쓰지 않으며, 평문이 필요한
   곳은 `plain(parts)`를 쓴다.
-- 조건 state는 `App.tsx`가 단독으로 소유한다.
+- 조건 state는 `App.tsx`가 단독으로 소유한다. 주요 탭 4개(추천·물어보기·리포트·기록)도 라우터 없이
+  `App.tsx`의 `tab` state로 전환한다(`lib/tabs.ts`). 기록 탭은 서버 목록 API가 없어 브라우저
+  localStorage(`lib/historyStorage.ts`)만 쓴다 — 저장 범위를 바꾸면 개인정보처리방침도 고친다.
 - 로그인은 `Root.tsx`가 관문이다. `/privacy`만 로그인 없이 열린다(라우터 없음, 경로 분기).
   Supabase 클라이언트(`lib/supabase.ts`)는 **로그인 전용**이고 데이터 조회에 쓰지 않는다.
   API 401은 `signOut(사유)`로 로그인 화면에 돌려보낸다.

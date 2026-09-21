@@ -15,16 +15,16 @@ const button = cva(
   {
     variants: {
       variant: {
-        solid: "bg-accent text-accent-fg hover:bg-accent-hover active:bg-accent-active",
-        outline: "border border-border bg-surface text-fg-body hover:bg-surface-sunken hover:border-border-strong",
+        solid: "bg-accent text-accent-fg shadow-sm hover:bg-accent-hover active:bg-accent-active",
+        outline: "border border-border-strong bg-surface text-fg-body hover:bg-surface-sunken hover:border-border-strong",
         ghost: "text-fg-muted hover:bg-surface-sunken hover:text-fg",
         quiet: "text-accent-text hover:underline underline-offset-2",
       },
       size: {
-        sm: "h-7 px-2.5 text-2xs",
-        md: "h-9 px-3.5 text-sm",
-        lg: "h-11 px-5 text-md",
-        icon: "size-8 p-0",
+        sm: "h-10 px-3.5 text-xs",
+        md: "h-11 px-4 text-sm",
+        lg: "h-14 px-6 text-md font-semibold",
+        icon: "size-11 p-0",
       },
     },
     defaultVariants: { variant: "outline", size: "md" },

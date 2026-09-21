@@ -1,7 +1,9 @@
-import { AlertTriangle, Compass, MailCheck } from "lucide-react";
+import { AlertTriangle, Check, MailCheck } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Card, CardBody } from "@/components/ui";
+import { CompassArt } from "@/components/brand/CompassArt";
+import { LogoMark, Wordmark } from "@/components/brand/Logo";
+import { ScoreRing } from "@/components/ScoreRing";
 import { cn } from "@/lib/cn";
 
 import { ThemeToggle } from "../ThemeToggle";
@@ -24,32 +26,33 @@ export function AuthLayout({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col bg-bg">
-      <header className="flex items-center justify-end px-4 py-3 sm:px-6">
-        <ThemeToggle />
-      </header>
+    <div className="grid min-h-screen bg-surface lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <IntroPanel />
 
-      <main className="mx-auto grid w-full max-w-5xl flex-1 items-center gap-10 px-4 pb-16 sm:px-6 lg:grid-cols-2 lg:gap-16">
-        <IntroPanel />
+      <div className="relative flex flex-col">
+        <header className="flex items-center justify-between px-5 py-3 sm:px-8 lg:justify-end">
+          {/* 좁은 화면에선 왼쪽 소개 패널이 위로 올라오므로 로고는 그쪽이 맡는다 */}
+          <ThemeToggle />
+        </header>
 
-        <Card variant="raised" className="w-full max-w-md justify-self-center lg:justify-self-end">
-          <CardBody className="pt-6">
-            <h2 className="text-lg font-semibold text-fg">{title}</h2>
-            <p className="mt-1 text-xs text-fg-muted">{description}</p>
+        <main className="flex flex-1 items-center justify-center px-5 pb-10 pt-2 sm:px-8">
+          <div className="w-full max-w-[26.25rem]">
+            <h2 className="font-display text-3xl font-bold tracking-[-0.02em] text-fg">{title}</h2>
+            <p className="mt-2.5 text-md leading-relaxed text-fg-body">{description}</p>
             {children}
-          </CardBody>
-        </Card>
-      </main>
+          </div>
+        </main>
 
-      <footer className="px-4 pb-6 text-center sm:px-6">
-        <p className="text-2xs text-fg-subtle">
-          데이터 출처 · 서울 열린데이터광장「우리마을가게 상권분석서비스」 · 공공누리 제1유형
-          {" · "}
-          <a href="/privacy" className="underline underline-offset-2 hover:text-fg-muted">
-            개인정보처리방침
-          </a>
-        </p>
-      </footer>
+        <footer className="px-5 pb-6 text-center sm:px-8">
+          <p className="text-2xs leading-relaxed text-fg-subtle">
+            데이터 출처 · 서울 열린데이터광장「우리마을가게 상권분석서비스」 · 공공누리 제1유형
+            {" · "}
+            <a href="/privacy" className="underline underline-offset-2 hover:text-fg-muted">
+              개인정보처리방침
+            </a>
+          </p>
+        </footer>
+      </div>
     </div>
   );
 }
@@ -70,14 +73,14 @@ export function AuthAlert({
     <div
       role={tone === "error" ? "alert" : "status"}
       className={cn(
-        "flex items-start gap-2 rounded-md px-3 py-2 text-xs leading-relaxed",
+        "flex items-start gap-2.5 rounded-md px-3.5 py-3 text-sm leading-relaxed",
         tone === "error"
           ? "bg-negative-subtle text-negative-text"
           : "bg-positive-subtle text-positive-text",
         className,
       )}
     >
-      <Icon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+      <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
       <div className="min-w-0">{children}</div>
     </div>
   );
@@ -85,52 +88,73 @@ export function AuthAlert({
 
 /* ── 왼쪽: 이 서비스가 무엇인가 ────────────────────────────── */
 
-const POINTS = [
-  {
-    title: "장소를 먼저 고르지 않아도 됩니다",
-    body: "업종·예산·타깃만 정하면 서울 골목상권 전체에서 조건에 맞는 곳을 찾아 드립니다.",
-  },
-  {
-    title: "추천 이유와 주의할 점을 함께",
-    body: "좋은 점만 모아 보여주지 않습니다. 이 자리의 약점도 같은 비중으로 정리합니다.",
-  },
-  {
-    title: "숫자는 원본 데이터와 대조합니다",
-    body: "설명에 들어간 수치를 공개 데이터와 하나씩 맞춰 보고, 어긋나면 보여 드리지 않습니다.",
-  },
-];
+const TRUST = ["데이터 근거", "AI 검증", "위험까지 솔직하게"];
 
 function IntroPanel() {
   return (
-    <section className="max-w-md">
-      <div className="flex items-center gap-2.5">
-        <Compass aria-hidden="true" className="size-7 text-accent" />
-        <div>
-          <p className="text-md font-semibold leading-tight text-fg">골목 컴퍼스</p>
-          <p className="font-mono text-2xs uppercase tracking-[0.14em] text-fg-subtle">
-            Alley Compass
+    <section className="relative flex flex-col overflow-hidden bg-[linear-gradient(160deg,var(--brand-abyss)_0%,var(--brand-deep)_60%,var(--brand-glow)_100%)] px-6 py-8 text-brand-fg sm:px-10 lg:min-h-screen lg:px-[4.5rem] lg:py-14">
+      <CompassArt className="absolute -bottom-40 -right-40 hidden w-[46rem] lg:block" />
+
+      <div className="relative flex items-center gap-3">
+        <LogoMark size={44} tone="onBrand" />
+        <Wordmark tone="onBrand" className="text-xl" />
+      </div>
+
+      <div className="relative mt-10 lg:mt-auto">
+        <span aria-hidden="true" className="block h-[3px] w-12 rounded-full bg-brand-gold" />
+        <h1 className="mt-6 font-display text-3xl font-bold leading-[1.36] tracking-[-0.02em] text-brand-fg lg:text-4xl">
+          창업하기 전에,
+          <br />
+          골목의 생존 확률부터
+          <br />
+          확인하세요.
+        </h1>
+        <p className="mt-5 text-md leading-relaxed text-brand-fg-muted lg:text-lg">
+          서울 골목상권을 분석해서 나에게 맞는
+          <br className="hidden sm:inline" /> 업종과 자리를 추천해 드려요.
+        </p>
+
+        <ul className="mt-6 flex flex-wrap gap-2">
+          {TRUST.map((t) => (
+            <li
+              key={t}
+              className="inline-flex items-center gap-1.5 rounded-full border border-brand-fg/20 bg-brand-fg/10 px-3.5 py-1.5 text-xs font-medium text-brand-fg"
+            >
+              <Check aria-hidden="true" className="size-3.5" strokeWidth={2.6} />
+              {t}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* 제품 미리보기 — 실제 결과가 아니라 화면 예시다. 값을 지어낸 것이므로 "예시"를 밝힌다. */}
+      <div
+        aria-hidden="true"
+        className="relative mt-9 hidden h-44 [@media(min-width:1024px)_and_(min-height:900px)]:block"
+      >
+        <p className="absolute -top-6 left-0 text-2xs font-medium text-brand-fg-muted">
+          화면 예시
+        </p>
+        <div className="absolute left-0 top-0 flex w-[21.5rem] items-center gap-3.5 rounded-2xl border border-brand-fg/20 bg-brand-fg/10 p-4 shadow-lg backdrop-blur-md">
+          <span className="flex size-9 items-center justify-center rounded-full bg-brand-gold font-display font-bold text-brand-abyss">
+            1
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-md font-semibold text-brand-fg">예시 상권 A</p>
+            <p className="text-xs text-brand-fg-muted">추천 1위</p>
+          </div>
+          <ScoreRing score={87} size={56} stroke={5} tone="onBrand" />
+        </div>
+        <div className="absolute left-28 top-[5.75rem] w-72 rounded-2xl border border-brand-fg/20 bg-brand-fg/10 p-4 shadow-lg backdrop-blur-md">
+          <p className="inline-flex items-center gap-1 rounded-full bg-positive-subtle px-2.5 py-0.5 text-xs font-medium text-positive-text">
+            <Check aria-hidden="true" className="size-3.5" strokeWidth={2.4} />
+            데이터로 확인됨
+          </p>
+          <p className="mt-2 text-sm leading-relaxed text-brand-fg">
+            저녁 시간대에 유동인구가 가장 많이 몰려요.
           </p>
         </div>
       </div>
-
-      <h1 className="mt-6 text-3xl font-semibold leading-tight text-fg">
-        어디에 열지부터
-        <br />
-        정하지 못했다면
-      </h1>
-
-      <p className="mt-3 text-sm leading-relaxed text-fg-body">
-        서울 골목상권을 조건에 맞춰 비교하고, 살아남을 가능성이 높은 자리를 좁혀 드립니다.
-      </p>
-
-      <ul className="mt-7 flex flex-col gap-4">
-        {POINTS.map((point) => (
-          <li key={point.title} className="border-l-2 border-accent-border pl-3">
-            <p className="text-xs font-semibold text-fg">{point.title}</p>
-            <p className="mt-0.5 text-xs leading-relaxed text-fg-muted">{point.body}</p>
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }

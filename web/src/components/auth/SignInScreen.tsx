@@ -163,7 +163,7 @@ export function SignInScreen() {
             </AuthAlert>
           ) : null}
 
-          <form onSubmit={submit} className="mt-5 flex flex-col gap-4">
+          <form onSubmit={submit} className="mt-7 flex flex-col gap-5">
             <Field>
               <FieldLabel>이메일</FieldLabel>
               <Input
@@ -174,6 +174,7 @@ export function SignInScreen() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
+                size="lg"
               />
             </Field>
 
@@ -185,7 +186,7 @@ export function SignInScreen() {
                       <button
                         type="button"
                         onClick={() => switchMode("reset")}
-                        className="text-accent-text hover:underline"
+                        className="py-1 text-sm font-medium text-accent-text hover:underline"
                       >
                         비밀번호를 잊으셨나요?
                       </button>
@@ -219,7 +220,7 @@ export function SignInScreen() {
                 type="button"
                 onClick={() => void resendConfirmation()}
                 disabled={disabled}
-                className="self-start text-xs text-accent-text hover:underline disabled:opacity-55"
+                className="self-start py-2 text-sm text-accent-text hover:underline disabled:opacity-55"
               >
                 확인 메일을 못 받으셨나요? 다시 보내기
               </button>
@@ -233,13 +234,13 @@ export function SignInScreen() {
 
           {enabledProviders.length > 0 && mode !== "reset" ? (
             <>
-              <div className="my-5 flex items-center gap-3">
+              <div className="my-6 flex items-center gap-3.5">
                 <span className="h-px flex-1 bg-border" />
-                <span className="text-2xs text-fg-subtle">또는</span>
+                <span className="text-xs text-fg-muted">또는</span>
                 <span className="h-px flex-1 bg-border" />
               </div>
 
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-3">
                 {enabledProviders.map((provider) => (
                   <SocialButton
                     key={provider}
@@ -254,7 +255,7 @@ export function SignInScreen() {
           ) : null}
 
           {mode !== "reset" ? (
-            <p className="mt-4 text-center text-2xs leading-relaxed text-fg-subtle">
+            <p className="mt-5 text-center text-xs leading-relaxed text-fg-muted">
               가입하거나 소셜 계정으로 계속하면{" "}
               <a href="/privacy" className="text-fg-muted underline underline-offset-2 hover:text-fg">
                 개인정보처리방침
@@ -263,14 +264,14 @@ export function SignInScreen() {
             </p>
           ) : null}
 
-          <p className="mt-5 border-t border-border-subtle pt-4 text-center text-xs text-fg-muted">
+          <p className="mt-6 border-t border-border-subtle pt-5 text-center text-base text-fg-body">
             {mode === "signin" ? (
               <>
                 아직 계정이 없으신가요?{" "}
                 <button
                   type="button"
                   onClick={() => switchMode("signup")}
-                  className="font-medium text-accent-text hover:underline"
+                  className="font-semibold text-accent-text hover:underline"
                 >
                   회원가입
                 </button>
@@ -281,7 +282,7 @@ export function SignInScreen() {
                 <button
                   type="button"
                   onClick={() => switchMode("signin")}
-                  className="font-medium text-accent-text hover:underline"
+                  className="font-semibold text-accent-text hover:underline"
                 >
                   로그인
                 </button>

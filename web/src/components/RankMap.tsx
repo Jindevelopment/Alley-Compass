@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 
-import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui";
 import { type KakaoMapInstance, loadKakaoMaps } from "@/lib/kakaoMaps";
 import type { DistrictScore } from "@/types/api";
 
@@ -142,7 +141,7 @@ export function RankMap({ ranking, selectedCode, onSelect }: RankMapProps) {
       // (Circle과 달리 캔버스가 아니다).
       const badge = new kakao.maps.CustomOverlay({
         position,
-        content: `<div class="flex size-6 items-center justify-center rounded-full border-2 border-white font-mono text-2xs font-semibold text-white shadow" style="background:${color}">${r.rank}</div>`,
+        content: `<div class="flex size-8 items-center justify-center rounded-full border-[3px] border-white text-sm font-bold text-white shadow-md" style="background:${color}">${r.rank}</div>`,
         yAnchor: 0.5,
         zIndex: isSelected ? 20 : 10,
       });
@@ -172,32 +171,26 @@ export function RankMap({ ranking, selectedCode, onSelect }: RankMapProps) {
   }, [ranking, selectedCode, status, onSelect]);
 
   return (
-    <Card>
-      <CardHeader divided>
-        <CardTitle as="h3" className="text-sm">
-          지도로 보기
-        </CardTitle>
-      </CardHeader>
-
-      <CardBody className="p-0">
-        {status === "error" ? (
-          <p className="p-4 text-xs leading-relaxed text-fg-muted">{errorMessage}</p>
-        ) : (
-          <div
-            ref={containerRef}
-            role="img"
-            aria-label="추천 상권 위치를 원으로 표시한 지도. 숫자는 목록의 순위와 같고, 원 크기는 상권 면적, 색은 생존 안정성 점수를 나타낸다."
-            className="h-[380px] w-full"
-          />
-        )}
-      </CardBody>
+    <section
+      aria-label="지도"
+      className="relative h-[20rem] overflow-hidden rounded-2xl border border-border bg-surface-sunken shadow-sm lg:h-full lg:min-h-[28rem]"
+    >
+      {status === "error" ? (
+        <p className="p-5 text-sm leading-relaxed text-fg-muted">{errorMessage}</p>
+      ) : (
+        <div
+          ref={containerRef}
+          role="img"
+          aria-label="추천 상권 위치를 원으로 표시한 지도. 숫자는 목록의 순위와 같고, 원 크기는 상권 면적, 색은 생존 안정성 점수를 나타낸다."
+          className="absolute inset-0"
+        />
+      )}
 
       {status === "ready" ? (
-        <p className="border-t border-border-subtle px-4 py-2 text-2xs text-fg-subtle">
-          숫자 = 목록 순위 · 색 = 생존 안정성 점수(초록 75+ · 청록 60~74 · 빨강 60 미만) · 원 크기 = 상권
-          면적. 원에 마우스를 올리면 이름이 뜨고, 누르면 상세 정보가 열립니다.
+        <p className="pointer-events-none absolute bottom-4 left-4 right-4 z-10 rounded-full bg-surface/95 px-4 py-2 text-center text-xs font-medium text-fg-body shadow-md backdrop-blur sm:right-auto sm:text-left">
+          숫자 = 목록 순위 · 색 = 점수(초록 75+ · 청록 60~74 · 빨강 60 미만)
         </p>
       ) : null}
-    </Card>
+    </section>
   );
 }

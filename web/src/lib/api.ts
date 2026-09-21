@@ -42,7 +42,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function authedFetch(path: string, init?: RequestInit): Promise<Response> {
   // 토큰은 캐시하지 않고 매번 가져온다 — 라이브러리가 백그라운드에서 갱신하므로
   // 들고 다니면 만료된 값을 보내게 된다.
   const token = await getAccessToken();
@@ -68,6 +68,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(body.detail || `API 오류 (HTTP ${res.status})`, res.status);
   }
 
+  return res;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await authedFetch(path, init);
   return (await res.json()) as T;
 }
 
@@ -154,4 +159,25 @@ export function fetchParseCondition(
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+/**
+ * Top-K 상권 + 각 상권의 추천·주의 근거를 PDF 한 장으로 (PRD F-15).
+ *
+ * ⚠️ 상권마다 Claude 를 최대 2회 부르므로(추천 + 반대) 몇 분 걸리고 과금된다.
+ * 사용자가 버튼을 눌러야만 부른다. top_k 는 서버가 1~10 으로 제한한다.
+ */
+export async function fetchReportPdf(conditions: Conditions, topK: number): Promise<Blob> {
+  const res = await authedFetch("/report", {
+    method: "POST",
+    body: JSON.stringify({
+      business_code: conditions.biz,
+      budget: conditions.budget,
+      age: conditions.age,
+      character: conditions.character,
+      priority: conditions.priority,
+      top_k: topK,
+    }),
+  });
+  return await res.blob();
 }

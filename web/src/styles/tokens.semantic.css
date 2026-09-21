@@ -2,7 +2,7 @@
  * 2계층 · 의미 토큰 (Semantic Tokens)
  *
  * "무슨 색인가"가 아니라 "무슨 역할인가"로 이름을 붙인다.
- * 컴포넌트는 이 토큰만 쓴다 — surface/border/text/accent …
+ * 컴포넌트는 이 토큰만 쓴다 — surface/border/fg/accent …
  *
  * 테마 전환은 여기 값만 바꾼다. 세 가지 상태를 모두 정의한다.
  *   1. :root                      라이트 (기본값 · 모든 토큰이 여기 다 있다)
@@ -11,83 +11,81 @@
  *
  * 규칙: 어떤 토큰도 다크 블록에만 존재해선 안 된다. 라이트에 없는 토큰이
  * 다크에만 있으면 라이트 화면에서 색이 통째로 비어 렌더된다.
+ *
+ * 역할 요약
+ *   accent     주요 행동(버튼)·선택·링크 — 라이트는 네이비, 다크는 밝은 틸
+ *   highlight  데이터 강조(상위 %, 그래프 선) — 틸
+ *   gold       브랜드 포인트(1위 표식) — 글자에는 gold-text 만 쓴다
+ *   fg-subtle  가장 옅은 글자도 대비 4.5:1 이상을 지킨다
  * ────────────────────────────────────────────────────────────── */
 
 :root {
-  /* ── 배경면 ──────────────────────────────────────── */
-  --bg:             var(--gray-50);    /* 페이지 바닥 */
-  --surface:        var(--gray-0);     /* 카드·패널 */
-  --surface-sunken: var(--gray-25);    /* 표 헤더·입력 내부 */
-  --surface-raised: var(--gray-0);     /* 드로어·팝오버 (그림자로 띄움) */
+  --bg: var(--gray-25);
+  --surface: var(--gray-0);
+  --surface-sunken: var(--gray-50);
+  --surface-raised: var(--gray-0);
   --surface-inverse: var(--gray-900);
-
-  /* ── 경계선 ──────────────────────────────────────── */
-  --border:        var(--gray-200);
-  --border-subtle: var(--gray-100);
-  --border-strong: var(--gray-300);
-
-  /* ── 전경(글자) — Tailwind의 --text-* 네임스페이스와 충돌을 피해 fg로 둔다 ────────────────────────────────────────── */
-  --fg:         var(--gray-900);  /* 제목·수치 */
-  --fg-body:    var(--gray-700);  /* 본문 */
-  --fg-muted:   var(--gray-500);  /* 보조 설명 */
-  --fg-subtle:  var(--gray-400);  /* 라벨·단위 */
+  --border: var(--gray-100);
+  --border-subtle: var(--gray-50);
+  --border-strong: var(--gray-400);
+  --fg: var(--gray-900);
+  --fg-body: var(--gray-700);
+  --fg-muted: var(--gray-500);
+  --fg-subtle: var(--gray-450);
   --fg-inverse: var(--gray-0);
-
-  /* ── 강조 (브랜드·선택·포커스) ───────────────────── */
-  --accent:          var(--teal-500);
-  --accent-hover:    var(--teal-600);
-  --accent-active:   var(--teal-700);
-  --accent-fg:       var(--gray-0);    /* 강조면 위 글자 */
-  --accent-subtle:   var(--teal-50);   /* 선택된 행 배경 */
-  --accent-border:   var(--teal-200);
-  --accent-text:     var(--teal-600);  /* 흰 배경 위 강조 글자 */
-
-  /* ── 의미색 · 긍정 (추천 근거·안정) ──────────────── */
-  --positive:        var(--moss-500);
+  --accent: var(--navy-500);
+  --accent-hover: var(--navy-600);
+  --accent-active: var(--navy-700);
+  --accent-fg: var(--gray-0);
+  --accent-subtle: var(--navy-50);
+  --accent-border: var(--navy-200);
+  --accent-text: var(--navy-500);
+  --highlight: var(--teal-400);
+  --highlight-subtle: var(--teal-50);
+  --highlight-border: var(--teal-200);
+  --highlight-text: var(--teal-500);
+  --gold: var(--gold-400);
+  --gold-subtle: var(--gold-100);
+  --gold-text: var(--gold-600);
+  --positive: var(--moss-500);
   --positive-subtle: var(--moss-100);
   --positive-border: var(--moss-200);
-  --positive-text:   var(--moss-600);
-
-  /* ── 의미색 · 주의 (검증 반려·미검증) ───────────── */
-  --caution:        var(--amber-500);
-  --caution-subtle: var(--amber-100);
-  --caution-border: var(--amber-200);
-  --caution-text:   var(--amber-600);
-
-  /* ── 의미색 · 부정 (반대 근거·위험) ─────────────── */
-  --negative:        var(--rust-500);
+  --positive-text: var(--moss-600);
+  --caution: var(--gold-400);
+  --caution-subtle: var(--gold-100);
+  --caution-border: var(--gold-200);
+  --caution-text: var(--gold-600);
+  --negative: var(--rust-500);
   --negative-subtle: var(--rust-100);
   --negative-border: var(--rust-200);
-  --negative-text:   var(--rust-600);
-
-  /* ── 데이터 없음 (이 서비스의 1급 상태) ──────────
-   * "모른다"를 회색으로 죽이지 않고 고유한 표현을 준다.
-   * 없는 데이터를 지어내지 않는 것이 설계 원칙이라 화면에 자주 등장한다. */
-  --nodata:        var(--gray-400);
+  --negative-text: var(--rust-600);
+  --nodata: var(--gray-400);
   --nodata-subtle: var(--gray-50);
-  --nodata-border: var(--gray-200);
-
-  /* ── Score 신호 (생존 안정성 0~100) ──────────────
-   * 75 이상 / 60 이상 / 미만. 강조색과 분리해 둔다 —
-   * 브랜드색을 바꿔도 점수 판독 기준은 흔들리면 안 된다. */
+  --nodata-border: var(--gray-300);
   --score-high: var(--moss-500);
-  --score-mid:  var(--teal-400);
-  --score-low:  var(--rust-500);
-
-  /* ── 포커스 링 (접근성 · 절대 없애지 않는다) ─────── */
-  --focus-ring: var(--teal-400);
-
-  /* ── 그림자 ──────────────────────────────────────── */
-  --elevation-sm: 0 1px 2px rgb(12 21 19 / 0.06);
-  --elevation-md: 0 1px 2px rgb(12 21 19 / 0.05), 0 4px 12px -4px rgb(12 21 19 / 0.12);
-  --elevation-lg: 0 2px 4px rgb(12 21 19 / 0.06), 0 16px 40px -12px rgb(12 21 19 / 0.28);
-
-  /* ── 소셜 로그인 버튼 — 카카오·구글 디자인 가이드가 색을 지정한다 ── */
-  --kakao:         var(--kakao-yellow);
-  --kakao-fg:      rgb(0 0 0 / 0.85);
-  --google:        var(--google-white);
-  --google-fg:     var(--google-ink);
+  --score-mid: var(--teal-400);
+  --score-low: var(--rust-500);
+  --focus-ring: var(--navy-400);
+  --elevation-sm: 0 1px 2px rgb(11 31 51 / 0.06);
+  --elevation-md: 0 1px 2px rgb(11 31 51 / 0.06), 0 8px 24px -6px rgb(11 31 51 / 0.10);
+  --elevation-lg: 0 2px 4px rgb(11 31 51 / 0.08), 0 16px 40px -8px rgb(11 31 51 / 0.20);
+  --kakao: var(--kakao-yellow);
+  --kakao-fg: rgb(0 0 0 / 0.85);
+  --google: var(--google-white);
+  --google-fg: var(--google-ink);
   --google-border: var(--google-stroke);
+
+  /* ── 브랜드 패널 (로그인·로딩) ─────────────────────
+   * 라이트/다크와 무관하게 항상 짙은 네이비 위에 올라가는 요소용이다.
+   * 다크 블록에서 덮지 않는다 — 두 테마가 같은 화면을 본다. */
+  --brand-glow:     var(--navy-350);
+  --brand-deep:     var(--navy-500);
+  --brand-deep-2:   var(--navy-700);
+  --brand-abyss:    var(--navy-800);
+  --brand-fg:       var(--gray-0);
+  --brand-fg-muted: var(--navy-100);
+  --brand-teal:     var(--teal-300);
+  --brand-gold:     var(--gold-300);
 
   color-scheme: light;
 }
@@ -95,62 +93,56 @@
 /* ── OS 다크 (사용자가 명시적으로 라이트를 고르지 않은 경우) ── */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg:             var(--gray-950);
-    --surface:        var(--gray-900);
-    --surface-sunken: #111d1a;
+    --bg: var(--gray-950);
+    --surface: var(--gray-900);
+    --surface-sunken: #0a1a2b;
     --surface-raised: var(--gray-800);
     --surface-inverse: var(--gray-50);
-
-    --border:        #2b3a35;
-    --border-subtle: #1e2c28;
-    --border-strong: #3d504a;
-
-    --fg:         var(--gray-50);
-    --fg-body:    var(--gray-200);
-    --fg-muted:   var(--gray-400);
-    --fg-subtle:  var(--gray-500);
+    --border: #22364a;
+    --border-subtle: #182a3c;
+    --border-strong: #4d6378;
+    --fg: var(--gray-50);
+    --fg-body: var(--gray-200);
+    --fg-muted: var(--gray-300);
+    --fg-subtle: var(--gray-400);
     --fg-inverse: var(--gray-950);
-
-    --accent:        var(--teal-300);
-    --accent-hover:  var(--teal-200);
+    --accent: var(--teal-300);
+    --accent-hover: var(--teal-200);
     --accent-active: var(--teal-100);
-    --accent-fg:     var(--teal-900);
-    --accent-subtle: var(--teal-800);
-    --accent-border: var(--teal-600);
-    --accent-text:   var(--teal-200);
-
-    --positive:        var(--moss-400);
+    --accent-fg: var(--navy-900);
+    --accent-subtle: var(--navy-700);
+    --accent-border: var(--navy-400);
+    --accent-text: var(--teal-300);
+    --highlight: var(--teal-300);
+    --highlight-subtle: var(--teal-800);
+    --highlight-border: var(--teal-600);
+    --highlight-text: var(--teal-200);
+    --gold: var(--gold-300);
+    --gold-subtle: var(--gold-800);
+    --gold-text: var(--gold-300);
+    --positive: var(--moss-400);
     --positive-subtle: var(--moss-800);
     --positive-border: var(--moss-600);
-    --positive-text:   var(--moss-200);
-
-    --caution:        var(--amber-400);
-    --caution-subtle: var(--amber-800);
-    --caution-border: var(--amber-600);
-    --caution-text:   var(--amber-200);
-
-    --negative:        var(--rust-400);
+    --positive-text: var(--moss-200);
+    --caution: var(--gold-300);
+    --caution-subtle: var(--gold-800);
+    --caution-border: var(--gold-600);
+    --caution-text: var(--gold-200);
+    --negative: var(--rust-400);
     --negative-subtle: var(--rust-800);
     --negative-border: var(--rust-600);
-    --negative-text:   var(--rust-200);
-
-    --nodata:        var(--gray-500);
-    --nodata-subtle: #131f1c;
-    --nodata-border: #2b3a35;
-
+    --negative-text: var(--rust-200);
+    --nodata-subtle: #0e1e2f;
+    --nodata-border: #22364a;
     --score-high: var(--moss-400);
-    --score-mid:  var(--teal-300);
-    --score-low:  var(--rust-400);
-
+    --score-mid: var(--teal-300);
+    --score-low: var(--rust-400);
     --focus-ring: var(--teal-300);
-
     --elevation-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-    --elevation-md: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 12px -4px rgb(0 0 0 / 0.5);
-    --elevation-lg: 0 2px 4px rgb(0 0 0 / 0.4), 0 16px 40px -12px rgb(0 0 0 / 0.7);
-
-    /* 카카오는 다크에서도 같은 노랑이다. 구글만 다크 버전이 따로 있다. */
-    --google:        var(--google-night);
-    --google-fg:     var(--google-night-ink);
+    --elevation-md: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -6px rgb(0 0 0 / 0.5);
+    --elevation-lg: 0 2px 4px rgb(0 0 0 / 0.4), 0 16px 40px -8px rgb(0 0 0 / 0.7);
+    --google: var(--google-night);
+    --google-fg: var(--google-night-ink);
     --google-border: var(--google-night-line);
 
     color-scheme: dark;
@@ -159,61 +151,56 @@
 
 /* ── 사용자가 직접 고른 다크 (OS가 라이트여도 이긴다) ── */
 :root[data-theme="dark"] {
-  --bg:             var(--gray-950);
-  --surface:        var(--gray-900);
-  --surface-sunken: #111d1a;
+  --bg: var(--gray-950);
+  --surface: var(--gray-900);
+  --surface-sunken: #0a1a2b;
   --surface-raised: var(--gray-800);
   --surface-inverse: var(--gray-50);
-
-  --border:        #2b3a35;
-  --border-subtle: #1e2c28;
-  --border-strong: #3d504a;
-
-  --fg:         var(--gray-50);
-  --fg-body:    var(--gray-200);
-  --fg-muted:   var(--gray-400);
-  --fg-subtle:  var(--gray-500);
+  --border: #22364a;
+  --border-subtle: #182a3c;
+  --border-strong: #4d6378;
+  --fg: var(--gray-50);
+  --fg-body: var(--gray-200);
+  --fg-muted: var(--gray-300);
+  --fg-subtle: var(--gray-400);
   --fg-inverse: var(--gray-950);
-
-  --accent:        var(--teal-300);
-  --accent-hover:  var(--teal-200);
+  --accent: var(--teal-300);
+  --accent-hover: var(--teal-200);
   --accent-active: var(--teal-100);
-  --accent-fg:     var(--teal-900);
-  --accent-subtle: var(--teal-800);
-  --accent-border: var(--teal-600);
-  --accent-text:   var(--teal-200);
-
-  --positive:        var(--moss-400);
+  --accent-fg: var(--navy-900);
+  --accent-subtle: var(--navy-700);
+  --accent-border: var(--navy-400);
+  --accent-text: var(--teal-300);
+  --highlight: var(--teal-300);
+  --highlight-subtle: var(--teal-800);
+  --highlight-border: var(--teal-600);
+  --highlight-text: var(--teal-200);
+  --gold: var(--gold-300);
+  --gold-subtle: var(--gold-800);
+  --gold-text: var(--gold-300);
+  --positive: var(--moss-400);
   --positive-subtle: var(--moss-800);
   --positive-border: var(--moss-600);
-  --positive-text:   var(--moss-200);
-
-  --caution:        var(--amber-400);
-  --caution-subtle: var(--amber-800);
-  --caution-border: var(--amber-600);
-  --caution-text:   var(--amber-200);
-
-  --negative:        var(--rust-400);
+  --positive-text: var(--moss-200);
+  --caution: var(--gold-300);
+  --caution-subtle: var(--gold-800);
+  --caution-border: var(--gold-600);
+  --caution-text: var(--gold-200);
+  --negative: var(--rust-400);
   --negative-subtle: var(--rust-800);
   --negative-border: var(--rust-600);
-  --negative-text:   var(--rust-200);
-
-  --nodata:        var(--gray-500);
-  --nodata-subtle: #131f1c;
-  --nodata-border: #2b3a35;
-
+  --negative-text: var(--rust-200);
+  --nodata-subtle: #0e1e2f;
+  --nodata-border: #22364a;
   --score-high: var(--moss-400);
-  --score-mid:  var(--teal-300);
-  --score-low:  var(--rust-400);
-
+  --score-mid: var(--teal-300);
+  --score-low: var(--rust-400);
   --focus-ring: var(--teal-300);
-
   --elevation-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-  --elevation-md: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 12px -4px rgb(0 0 0 / 0.5);
-  --elevation-lg: 0 2px 4px rgb(0 0 0 / 0.4), 0 16px 40px -12px rgb(0 0 0 / 0.7);
-
-  --google:        var(--google-night);
-  --google-fg:     var(--google-night-ink);
+  --elevation-md: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -6px rgb(0 0 0 / 0.5);
+  --elevation-lg: 0 2px 4px rgb(0 0 0 / 0.4), 0 16px 40px -8px rgb(0 0 0 / 0.7);
+  --google: var(--google-night);
+  --google-fg: var(--google-night-ink);
   --google-border: var(--google-night-line);
 
   color-scheme: dark;

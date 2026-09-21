@@ -1,9 +1,10 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, ChevronRight } from "lucide-react";
 
-import { AXIS_LABEL } from "@/data/businessTypes";
-import { scoreTone } from "@/lib/format";
+import { AXIS_SHORT } from "@/data/businessTypes";
+import { cn } from "@/lib/cn";
 import type { DistrictScore } from "@/types/api";
-import { Badge, Card, Meter } from "@/components/ui";
+import { ScoreRing } from "@/components/ScoreRing";
+import { Badge, Card } from "@/components/ui";
 
 /* ──────────────────────────────────────────────────────────────
  * 상권 Ranking 목록 (F-06). backend POST /rank 결과를 그대로 그린다.
@@ -27,11 +28,11 @@ export function RankList({ ranking, selectedCode, onSelect, loading = false }: R
     return (
       <Card variant="nodata">
         <div className="flex items-start gap-2.5 px-4 py-5">
-          <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-fg-subtle" />
+          <AlertCircle aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-fg-muted" />
           <div>
-            <p className="text-sm font-medium text-fg">후보 상권이 없습니다</p>
-            <p className="mt-1 text-xs text-fg-muted">
-              조건을 바꾸거나 다른 업종으로 다시 찾아보세요.
+            <p className="text-md font-semibold text-fg">조건에 맞는 상권이 없어요</p>
+            <p className="mt-1 text-sm text-fg-muted">
+              업종이나 상권 성격을 바꿔서 다시 찾아보세요.
             </p>
           </div>
         </div>
@@ -41,7 +42,7 @@ export function RankList({ ranking, selectedCode, onSelect, loading = false }: R
 
   return (
     <ol
-      className={`flex flex-col gap-2 transition-opacity duration-200 ${loading ? "opacity-50" : ""}`}
+      className={`flex flex-col gap-3 transition-opacity duration-200 ${loading ? "opacity-50" : ""}`}
       aria-busy={loading}
     >
       {ranking.map((r) => (
@@ -57,7 +58,7 @@ export function RankList({ ranking, selectedCode, onSelect, loading = false }: R
   );
 }
 
-type AxisKey = keyof typeof AXIS_LABEL;
+type AxisKey = keyof typeof AXIS_SHORT;
 
 /** 점수를 가장 많이 끌어올린 축과 가장 많이 끌어내린 축. 데이터 없는 축은 뺀다. */
 function extremes(breakdown: DistrictScore["score_breakdown"]) {
@@ -82,8 +83,8 @@ function RankRow({
   onSelect: () => void;
 }) {
   const score = Math.round(r.final_score);
-  const tone = scoreTone(score);
   const { best, worst } = extremes(r.score_breakdown);
+  const first = r.rank === 1;
 
   return (
     <Card
@@ -93,51 +94,51 @@ function RankRow({
       type="button"
       onClick={onSelect}
       aria-label={`${r.rank}위 ${r.district_name}, 생존 안정성 ${score}점. 상세 지표 열기`}
-      className="group px-3.5 py-3"
+      className="group rounded-2xl px-4 py-4"
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-center gap-3.5">
         <span
           aria-hidden="true"
-          className="mt-0.5 w-6 shrink-0 text-center font-mono text-lg font-semibold tabular-nums text-fg-subtle group-hover:text-accent"
+          className={cn(
+            "flex size-10 shrink-0 items-center justify-center rounded-full font-display text-lg font-bold",
+            first
+              ? "bg-gradient-to-br from-brand-gold to-gold text-brand-abyss"
+              : "bg-surface-sunken text-fg-body",
+          )}
         >
           {r.rank}
         </span>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span className="text-md font-semibold text-fg">{r.district_name}</span>
-
-          </div>
-
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {best ? (
-              <Badge tone="positive">
-                {AXIS_LABEL[best[0]]} 상위 {Math.max(1, Math.round(100 - best[1]))}%
-              </Badge>
-            ) : null}
-            {worst ? (
-              <Badge tone="negative">
-                {AXIS_LABEL[worst[0]]} 하위 {Math.max(1, Math.round(worst[1]))}%
-              </Badge>
-            ) : null}
-            {!best && !worst ? <Badge tone="nodata">구성 지표 데이터 부족</Badge> : null}
-          </div>
-        </div>
-
-        <div className="w-24 shrink-0 text-right">
-          <p className="font-mono text-2xl font-semibold leading-none tabular-nums text-fg">
-            {score}
-            <span className="ml-0.5 text-xs font-normal text-fg-subtle">점</span>
+          <p className="truncate text-lg font-semibold leading-snug tracking-[-0.01em] text-fg">
+            {r.district_name}
           </p>
-          <p className="mt-1 text-2xs text-fg-subtle">생존 안정성</p>
-          <Meter
-            value={score}
-            tone={tone}
-            size="sm"
-            label={`생존 안정성 ${score}점`}
-            className="mt-1.5"
-          />
+          {r.gu_name ? <p className="text-sm text-fg-muted">{r.gu_name}</p> : null}
         </div>
+
+        <div className="flex shrink-0 flex-col items-center gap-0.5">
+          <ScoreRing score={score} size={60} stroke={6} />
+          <span className="text-2xs text-fg-muted">생존 안정성</span>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        {best ? (
+          <Badge tone="positive">
+            {AXIS_SHORT[best[0]]} 상위 {Math.max(1, Math.round(100 - best[1]))}%
+          </Badge>
+        ) : null}
+        {/* 가장 낮은 축도 50점이 넘으면 "약점"이 아니다 — 하위라고 쓰면 좋은 점수를 나쁘게 읽게 된다 */}
+        {worst && worst[1] < 50 ? (
+          <Badge tone="negative">
+            {AXIS_SHORT[worst[0]]} 하위 {Math.max(1, Math.round(worst[1]))}%
+          </Badge>
+        ) : null}
+        {!best ? <Badge tone="nodata">구성 지표 데이터 부족</Badge> : null}
+        <span className="ml-auto inline-flex items-center gap-0.5 text-sm font-semibold text-accent-text">
+          상세 보기
+          <ChevronRight aria-hidden="true" className="size-4 transition-transform group-hover:translate-x-0.5" />
+        </span>
       </div>
     </Card>
   );

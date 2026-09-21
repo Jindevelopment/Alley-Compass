@@ -1,7 +1,7 @@
-import { Loader2 } from "lucide-react";
 import { lazy, Suspense, type ComponentType } from "react";
 
 import { SignInScreen } from "./components/auth/SignInScreen";
+import { LoadingScreen } from "./components/LoadingScreen";
 import { UpdatePasswordScreen } from "./components/auth/UpdatePasswordScreen";
 import { PrivacyPage } from "./components/legal/PrivacyPage";
 import { TooltipProvider } from "./components/ui";
@@ -34,26 +34,15 @@ const PUBLIC_PAGES: Record<string, ComponentType> = {
   "/privacy": PrivacyPage,
 };
 
-function Loading() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-bg" aria-busy="true">
-      <p className="flex items-center gap-2 text-xs text-fg-muted">
-        <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-        <span className="sr-only">불러오는 중</span>
-      </p>
-    </div>
-  );
-}
-
 function Gate() {
   const { status } = useAuth();
 
-  if (status === "loading") return <Loading />;
+  if (status === "loading") return <LoadingScreen stage={0} />;
   if (status === "recovery") return <UpdatePasswordScreen />;
   if (status === "unauthenticated") return <SignInScreen />;
 
   return (
-    <Suspense fallback={<Loading />}>
+    <Suspense fallback={<LoadingScreen stage={1} />}>
       <App />
     </Suspense>
   );

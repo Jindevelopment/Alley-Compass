@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 /* 짧은 상태 표시. 톤은 tokens.semantic.css 의 의미색과 1:1 대응한다 —
  * 색을 눈대중으로 고르지 않고 "무슨 의미인가"로 고르게 만들기 위해서다. */
 const badge = cva(
-  "inline-flex items-center gap-1 rounded-sm border font-medium whitespace-nowrap",
+  "inline-flex items-center gap-1 rounded-full border font-medium whitespace-nowrap",
   {
     variants: {
       tone: {
@@ -18,8 +18,8 @@ const badge = cva(
         nodata: "bg-nodata-subtle border-dashed border-nodata-border text-fg-subtle",
       },
       size: {
-        sm: "px-1.5 py-px text-2xs",
-        md: "px-2 py-0.5 text-xs",
+        sm: "px-2.5 py-0.5 text-xs",
+        md: "px-3 py-1 text-sm",
       },
       /** 수치를 담을 때 — 자릿수 정렬 */
       mono: { true: "font-mono tabular-nums", false: "" },

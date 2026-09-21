@@ -38,6 +38,12 @@ FastAPI 를 거쳐야 하므로, 무료 조회까지 전부 한 경로로 모았
 
 호출은 전부 `src/lib/api.ts` 를 지난다. 컴포넌트가 `fetch` 를 직접 쓰지 않는다.
 
+### 로고 팔레트
+
+색은 로고에서 뽑았다 — `navy`(주요 행동·선택), `teal`(데이터 강조), `gold`(브랜드 포인트).
+글자에 쓰는 색은 모두 WCAG AA(4.5:1) 이상이고, 본문 기준 16px · 터치 영역 44px 이상이다.
+로그인·로딩처럼 항상 짙은 네이비 위에 얹는 요소는 테마와 무관하게 고정된 `--brand-*` 토큰을 쓴다.
+
 ### 지금 진짜인 것 / 아직 아닌 것
 
 | | 상태 |
@@ -76,6 +82,19 @@ Meter     DataRow   Drawer        Tooltip
 import { Card, CardBody, Input, Select } from "@/components/ui";
 ```
 
+### 주요 탭
+
+라우터 없이 `App.tsx` 의 `tab` state 로 전환한다(`lib/tabs.ts`).
+
+| 탭 | 하는 일 | 백엔드 |
+|---|---|---|
+| 추천 | 조건 바 + 순위 목록 + 지도, 상권을 누르면 상세 드로어 | `/rank`, `/detail`, `/agents` |
+| 물어보기 | 문장으로 조건을 정하고 "이렇게 이해했어요" 요약을 확인 | `/parse-condition` |
+| 리포트 | 상위 N곳을 PDF 로 내려받기 (AI 사용량 발생 · 버튼을 눌러야 호출) | `/report` |
+| 기록 | 내가 바꿔 본 조건과 1위 상권. **이 브라우저에만 저장** (`lib/historyStorage.ts`) | 없음 (서버 목록 API 생기면 교체) |
+
+조건을 한 번도 정하지 않은 첫 방문자는 탭 없이 `OnboardingChat` 만 본다.
+
 ### 디자인 토큰 — 3계층
 
 ```
@@ -98,10 +117,10 @@ src/styles/
 
 ```css
 /* ① 재료 */
---teal-500: #17655b;
+--navy-500: #14375c;
 
 /* ② 역할 */
-:root                    { --accent: var(--teal-500); }   /* 라이트 */
+:root                    { --accent: var(--navy-500); }   /* 라이트 */
 :root[data-theme="dark"] { --accent: var(--teal-300); }   /* 다크 */
 
 /* ③ 등록 → bg-accent / text-accent / border-accent 가 생긴다 */
@@ -163,8 +182,11 @@ src/
     auth/            SignInScreen · UpdatePasswordScreen · AuthLayout · PasswordInput
                      SocialButton (카카오·구글 가이드 준수) · AccountMenu
     legal/           PrivacyPage — /privacy, 로그인 없이 열림
-    AppHeader · ConditionBar · RankList · ResultSummary
-    DataStatusCard · AskPanel · SiteFooter · Rich · ThemeToggle
+    brand/           LogoMark · Wordmark · CompassArt (로고에서 뽑은 브랜드 요소)
+    tabs/            RecommendTab · AskTab · ReportTab · HistoryTab (주요 탭 4개)
+    AppHeader (탭 내비) · TabBar (모바일 하단 탭) · ConditionBar · RankList
+    ResultSummary · RankMap · ScoreRing · LoadingScreen · OnboardingChat
+    ChatLog · SiteFooter · Rich · ThemeToggle
   Root.tsx           공개 페이지 분기(/privacy) + 로그인 관문
                      (loading / recovery / authenticated / unauthenticated)
                      App 은 lazy — 로그인 전에는 받지 않는다

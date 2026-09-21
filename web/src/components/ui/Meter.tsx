@@ -40,7 +40,7 @@ export function Meter({ value, tone = "accent", label, size = "md", className }:
       aria-valuemax={100}
       className={cn(
         "w-full overflow-hidden rounded-full bg-border-subtle",
-        size === "sm" ? "h-1" : "h-1.5",
+        size === "sm" ? "h-1.5" : "h-2",
         className,
       )}
     >

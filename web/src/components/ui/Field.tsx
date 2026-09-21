@@ -100,13 +100,13 @@ export function FieldLabel({ children, hint, className }: FieldLabelProps) {
     <label
       htmlFor={ctx?.controlId}
       className={cn(
-        "flex items-baseline gap-2 text-xs font-medium text-fg",
+        "flex items-baseline justify-between gap-2 text-sm font-semibold text-fg",
         ctx?.disabled && "opacity-55",
         className,
       )}
     >
       {children}
-      {hint ? <span className="text-2xs font-normal text-fg-subtle">{hint}</span> : null}
+      {hint ? <span className="text-xs font-normal text-fg-muted">{hint}</span> : null}
     </label>
   );
 }

@@ -9,6 +9,7 @@ export function PasswordInput(props: Omit<InputProps, "type" | "suffix">) {
 
   return (
     <Input
+      size="lg"
       {...props}
       type={visible ? "text" : "password"}
       suffix={
@@ -17,12 +18,12 @@ export function PasswordInput(props: Omit<InputProps, "type" | "suffix">) {
           onClick={() => setVisible((v) => !v)}
           aria-label={visible ? "비밀번호 숨기기" : "비밀번호 보기"}
           aria-pressed={visible}
-          className="rounded-sm p-0.5 text-fg-subtle hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+          className="flex size-10 items-center justify-center rounded-md text-fg-muted hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
         >
           {visible ? (
-            <EyeOff aria-hidden="true" className="size-3.5" />
+            <EyeOff aria-hidden="true" className="size-5" />
           ) : (
-            <Eye aria-hidden="true" className="size-3.5" />
+            <Eye aria-hidden="true" className="size-5" />
           )}
         </button>
       }

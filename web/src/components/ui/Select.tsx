@@ -42,9 +42,9 @@ const selectTrigger = cva(
   {
     variants: {
       size: {
-        sm: "h-8 px-2.5 text-xs",
-        md: "h-9 px-3 text-sm",
-        lg: "h-11 px-3.5 text-md",
+        sm: "h-10 px-3 text-xs",
+        md: "h-11 px-3.5 text-sm",
+        lg: "h-14 px-4 text-md",
       },
     },
     defaultVariants: { size: "md" },

@@ -21,7 +21,7 @@ import { cn } from "@/lib/cn";
 const card = cva("min-w-0 rounded-xl", {
   variants: {
     variant: {
-      outline: "bg-surface border border-border",
+      outline: "bg-surface border border-border shadow-xs",
       raised: "bg-surface-raised border border-border shadow-sm",
       sunken: "bg-surface-sunken border border-border-subtle",
       nodata: "bg-nodata-subtle border border-dashed border-nodata-border",
@@ -31,7 +31,7 @@ const card = cva("min-w-0 rounded-xl", {
       true: [
         "text-left w-full cursor-pointer",
         "transition-[border-color,background-color,box-shadow] duration-150",
-        "hover:border-border-strong hover:shadow-xs",
+        "hover:border-border-strong hover:shadow-sm",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:border-accent",
         "active:translate-y-px",
       ],
@@ -39,7 +39,7 @@ const card = cva("min-w-0 rounded-xl", {
     },
     /** 선택된 상태 — 랭킹 행처럼 목록 안에서 하나가 골라진 경우 */
     selected: {
-      true: "border-accent bg-accent-subtle",
+      true: "border-accent bg-surface ring-2 ring-accent/30",
       false: "",
     },
   },

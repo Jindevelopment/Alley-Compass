@@ -38,7 +38,7 @@ export function SocialButton({ provider, busy = false, className, ...props }: So
     <button
       type="button"
       className={cn(
-        "relative inline-flex h-11 w-full items-center justify-center rounded-md px-11 text-sm font-medium",
+        "relative inline-flex h-14 w-full items-center justify-center rounded-md px-12 text-md font-semibold",
         "transition-[filter,background-color] duration-150",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:ring-offset-1 focus-visible:ring-offset-surface",
         "disabled:pointer-events-none disabled:opacity-50",

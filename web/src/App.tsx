@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AppHeader } from "@/components/AppHeader";
-import { AskPanel, type Message, type QuickAskAction } from "@/components/AskPanel";
-import { DataStatusCard } from "@/components/DataStatusCard";
 import { DistrictDrawer } from "@/components/detail/DistrictDrawer";
+import { LoadingScreen } from "@/components/LoadingScreen";
 import { OnboardingChat } from "@/components/OnboardingChat";
-import { RankList } from "@/components/RankList";
-import { RankMap } from "@/components/RankMap";
-import { ResultSummary } from "@/components/ResultSummary";
 import { SiteFooter } from "@/components/SiteFooter";
+import { TabBar } from "@/components/TabBar";
+import { AskTab, type Message, type QuickAskAction } from "@/components/tabs/AskTab";
+import { HistoryTab } from "@/components/tabs/HistoryTab";
+import { RecommendTab } from "@/components/tabs/RecommendTab";
+import { ReportTab } from "@/components/tabs/ReportTab";
 import { Button, Card, CardBody, type SelectOption } from "@/components/ui";
 import {
   AGE_LABEL,
@@ -19,6 +20,8 @@ import {
 import { ApiError, fetchBusinessTypes, fetchParseCondition, fetchRank } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { loadConditions, saveConditions } from "@/lib/conditionsStorage";
+import { addHistory, clearHistory, loadHistory, type HistoryEntry } from "@/lib/historyStorage";
+import type { Tab } from "@/lib/tabs";
 import { fmt } from "@/lib/format";
 import { b, type RichParts } from "@/lib/rich";
 import type { RankResponse } from "@/types/api";
@@ -130,6 +133,10 @@ export default function App() {
   /** 조건을 한 번이라도 확정해본 적 있는가. 저장된 조건이 있으면(복원) 곧바로 true. */
   const [onboarded, setOnboarded] = useState(false);
 
+  const [tab, setTabState] = useState<Tab>("recommend");
+  /** 이 브라우저에 쌓인 분석 기록 (lib/historyStorage.ts) */
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+
   const messageId = useRef(0);
 
   const say = useCallback((from: Message["from"], parts: RichParts) => {
@@ -149,8 +156,10 @@ export default function App() {
     [signOut],
   );
 
+  /** record=true 는 사용자가 직접 조건을 바꾼 경우 — 분석 기록에 남긴다. 저장된 조건을
+   * 복원하는 첫 로딩은 사용자가 한 일이 아니므로 남기지 않는다. */
   const runRank = useCallback(
-    (next: Conditions, onDone?: (res: RankResponse) => void) => {
+    (next: Conditions, onDone?: (res: RankResponse) => void, record = false) => {
       if (!next.biz) return;
 
       setLoading(true);
@@ -158,12 +167,25 @@ export default function App() {
         .then((res) => {
           setMeta(res);
           setError(null);
+          if (record && userId) {
+            const top = res.results[0];
+            setHistory(
+              addHistory(userId, {
+                id: `${Date.now()}`,
+                at: new Date().toISOString(),
+                conditions: next,
+                businessName: res.business_name,
+                topName: top ? top.district_name : null,
+                topScore: top ? Math.round(top.final_score) : null,
+              }),
+            );
+          }
           onDone?.(res);
         })
         .catch(handleError)
         .finally(() => setLoading(false));
     },
-    [handleError],
+    [handleError, userId],
   );
 
   /* 최초 진입 — 실제로 수집된 업종 목록을 받는다. 업종을 상수로 들고 있지 않는
@@ -207,6 +229,10 @@ export default function App() {
 
   useEffect(bootstrap, [bootstrap]);
 
+  useEffect(() => {
+    setHistory(userId ? loadHistory(userId) : []);
+  }, [userId]);
+
   /* 온보딩을 끝낸 뒤로는 조건이 바뀔 때마다(자연어 입력이든 칩이든) 사용자별로
    * 기억해 둔다 — 다음 로그인부터 이 조건으로 곧장 시작하기 위해서다. */
   useEffect(() => {
@@ -226,7 +252,7 @@ export default function App() {
 
     setConditions(next);
     if (userParts) say("user", userParts);
-    runRank(next, (res) => say("bot", changeMessage(labelParts, previousTopNames, res)));
+    runRank(next, (res) => say("bot", changeMessage(labelParts, previousTopNames, res)), true);
   };
 
   const handleReset = () => {
@@ -236,10 +262,13 @@ export default function App() {
     const next = { ...INITIAL_CONDITIONS, biz: first.value };
     setConditions(next);
     say("user", ["처음 조건으로 되돌려줘"]);
-    runRank(next, () =>
-      say("bot", [
-        `처음 조건(${first.label} · 보증금 ${fmt(INITIAL_CONDITIONS.budget)}만원 이하 · 20–30대 · 유동인구 중심 · 생존 안정성 우선)으로 되돌렸습니다.`,
-      ]),
+    runRank(
+      next,
+      () =>
+        say("bot", [
+          `처음 조건(${first.label} · 보증금 ${fmt(INITIAL_CONDITIONS.budget)}만원 이하 · 20–30대 · 유동인구 중심 · 생존 안정성 우선)으로 되돌렸습니다.`,
+        ]),
+      true,
     );
   };
 
@@ -334,14 +363,18 @@ export default function App() {
         const previousTopNames = (meta?.results ?? []).slice(0, 5).map((r) => r.district_name);
 
         setConditions(next);
-        runRank(next, (res) => {
-          if (!wasOnboarded) {
-            setOnboarded(true);
-            say("bot", firstParseMessage(next, bizLabel, res));
-          } else {
-            say("bot", parseSummaryMessage(next, bizLabel, previousTopNames, res));
-          }
-        });
+        runRank(
+          next,
+          (res) => {
+            if (!wasOnboarded) {
+              setOnboarded(true);
+              say("bot", firstParseMessage(next, bizLabel, res));
+            } else {
+              say("bot", parseSummaryMessage(next, bizLabel, previousTopNames, res));
+            }
+          },
+          true,
+        );
       })
       .catch((e: unknown) => {
         handleError(e);
@@ -349,24 +382,84 @@ export default function App() {
       });
   };
 
+  /** 조건 바에서 값 하나를 바꿨을 때 — 대화 기록에도 한 줄 남긴다. */
+  const handleConditionChange = (patch: Partial<Conditions>) => {
+    const label = (options: ReadonlyArray<{ value: string; label: string }>, value: string) =>
+      options.find((o) => o.value === value)?.label ?? value;
+
+    if (patch.biz !== undefined) {
+      applyChange(patch, ["업종을 ", b(label(bizOptions, patch.biz)), "(으)로 바꿨습니다."]);
+    } else if (patch.budget !== undefined) {
+      applyChange(patch, ["보증금 상한을 ", b(`${fmt(patch.budget)}만원`), "으로 바꿨습니다."]);
+    } else if (patch.age !== undefined) {
+      applyChange(patch, ["타깃 연령을 ", b(AGE_LABEL[patch.age]), "(으)로 바꿨습니다."]);
+    } else if (patch.character !== undefined) {
+      applyChange(patch, ["상권 성격을 ", b(CHARACTER_LABEL[patch.character]), "(으)로 바꿨습니다."]);
+    } else if (patch.priority !== undefined) {
+      applyChange(patch, ["가장 중요한 것을 ", b(PRIORITY_LABEL[patch.priority]), "(으)로 바꿨습니다."]);
+    }
+  };
+
+  const setTab = (next: Tab) => {
+    setSelectedCode(null);
+    setTabState(next);
+  };
+
+  const handleOpenHistory = (entry: HistoryEntry) => {
+    setConditions(entry.conditions);
+    setTab("recommend");
+    runRank(entry.conditions);
+  };
+
+  const handleClearHistory = () => {
+    if (!window.confirm("분석 기록을 모두 지울까요? 되돌릴 수 없어요.")) return;
+    if (userId) clearHistory(userId);
+    setHistory([]);
+  };
+
+  /* 리포트처럼 화면 안에서 오류 문구를 직접 보여주는 곳용 — 401 이면 로그인으로 돌려보낸다. */
+  const messageForError = (e: unknown): string | null => {
+    if (e instanceof ApiError && e.isUnauthorized) {
+      void signOut(e.message || "세션이 만료되었습니다. 다시 로그인해 주세요.");
+      return null;
+    }
+    return e instanceof Error ? e.message : null;
+  };
+
   const ranking = meta?.results ?? [];
   const visibleRanking = ranking.slice(0, visibleCount);
   const selected = ranking.find((r) => r.district_code === selectedCode) ?? null;
+  const bizLabel =
+    bizOptions.find((o) => o.value === conditions.biz)?.label ?? meta?.business_name ?? "";
+  const toggleMore = () =>
+    setVisibleCount((c) =>
+      c < ranking.length ? Math.min(c + VISIBLE_STEP, ranking.length) : INITIAL_VISIBLE,
+    );
+
+  /* 첫 화면 로딩 — 업종 목록을 받기 전(서버가 깨어나는 구간)과, 저장된 조건으로 첫
+   * 랭킹을 받기 전. 이 뒤로 조건을 바꿀 때의 재계산은 화면을 덮지 않는다. */
+  if (!error && loading && (bizOptions.length === 0 || (onboarded && !meta))) {
+    return <LoadingScreen stage={bizOptions.length === 0 ? 2 : 3} />;
+  }
+
+  const tabsVisible = onboarded && !error;
 
   return (
     <>
-      <div className="flex min-h-screen flex-col">
-        <AppHeader />
+      <div className="flex min-h-screen flex-col bg-bg">
+        <AppHeader tab={tab} onTab={setTab} showTabs={tabsVisible} />
 
-        <main className="mx-auto w-full max-w-[86rem] flex-1 px-4 py-6 sm:px-6">
+        <main className="mx-auto w-full max-w-[92rem] flex-1 px-4 py-6 sm:px-6 md:pb-10">
           {error ? (
-            <Card variant="nodata">
-              <CardBody className="flex flex-col items-start gap-3 pt-4">
+            <Card variant="nodata" className="mx-auto max-w-xl">
+              <CardBody className="flex flex-col items-start gap-4 p-6">
                 <div>
-                  <p className="text-sm font-semibold text-fg">데이터를 불러오지 못했습니다</p>
-                  <p className="mt-1 max-w-[62ch] text-xs leading-relaxed text-fg-muted">{error}</p>
+                  <p className="text-lg font-semibold text-fg">데이터를 불러오지 못했어요</p>
+                  <p className="mt-1.5 max-w-[62ch] text-sm leading-relaxed text-fg-muted">
+                    {error}
+                  </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={bootstrap}>
+                <Button variant="solid" size="md" onClick={bootstrap}>
                   다시 시도
                 </Button>
               </CardBody>
@@ -378,58 +471,55 @@ export default function App() {
               busy={loading}
               bootLoading={bizOptions.length === 0}
             />
+          ) : tab === "recommend" ? (
+            <RecommendTab
+              conditions={conditions}
+              bizOptions={bizOptions}
+              meta={meta}
+              loading={loading}
+              visible={visibleRanking}
+              total={ranking.length}
+              initialVisible={INITIAL_VISIBLE}
+              visibleCount={visibleCount}
+              selectedCode={selectedCode}
+              onSelect={setSelectedCode}
+              onToggleMore={toggleMore}
+              onChange={handleConditionChange}
+              onReset={handleReset}
+            />
+          ) : tab === "ask" ? (
+            <AskTab
+              messages={messages}
+              conditions={conditions}
+              bizLabel={bizLabel}
+              businessTypeCount={bizOptions.length}
+              busy={loading}
+              onParse={handleParse}
+              onAsk={handleAsk}
+              onGoRecommend={() => setTab("recommend")}
+            />
+          ) : tab === "report" ? (
+            <ReportTab
+              conditions={conditions}
+              meta={meta}
+              bizLabel={bizLabel}
+              onGoRecommend={() => setTab("recommend")}
+              onError={messageForError}
+            />
           ) : (
-            <>
-              <ResultSummary meta={meta} loading={loading} conditions={conditions} />
-
-              <div className="mt-5 grid gap-5 lg:grid-cols-12">
-                <div className="flex flex-col gap-4 lg:col-span-8">
-                  <RankMap
-                    ranking={visibleRanking}
-                    selectedCode={selectedCode}
-                    onSelect={setSelectedCode}
-                  />
-                  <RankList
-                    ranking={visibleRanking}
-                    selectedCode={selectedCode}
-                    onSelect={setSelectedCode}
-                    loading={loading}
-                  />
-                  {!loading && ranking.length > INITIAL_VISIBLE ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="self-center"
-                      onClick={() =>
-                        setVisibleCount((c) =>
-                          c < ranking.length ? Math.min(c + VISIBLE_STEP, ranking.length) : INITIAL_VISIBLE,
-                        )
-                      }
-                    >
-                      {visibleCount < ranking.length
-                        ? `더보기 (${ranking.length - visibleCount}곳 더)`
-                        : "접기"}
-                    </Button>
-                  ) : null}
-                </div>
-
-                <aside className="flex flex-col gap-4 lg:col-span-4">
-                  <DataStatusCard meta={meta} />
-                  <AskPanel
-                    messages={messages}
-                    onAsk={handleAsk}
-                    onParse={handleParse}
-                    businessTypeCount={bizOptions.length}
-                    busy={loading}
-                  />
-                </aside>
-              </div>
-            </>
+            <HistoryTab
+              entries={history}
+              onOpen={handleOpenHistory}
+              onClear={handleClearHistory}
+              onGoRecommend={() => setTab("recommend")}
+            />
           )}
         </main>
 
         <SiteFooter />
       </div>
+
+      {tabsVisible ? <TabBar tab={tab} onTab={setTab} /> : null}
 
       <DistrictDrawer
         r={selected}

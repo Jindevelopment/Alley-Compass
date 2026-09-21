@@ -10,7 +10,7 @@ export function Rich({ parts }: { parts: RichParts }) {
         typeof part === "string" ? (
           <Fragment key={i}>{part}</Fragment>
         ) : (
-          <b key={i} className="font-semibold text-fg">
+          <b key={i} className="font-semibold">
             {part.bold}
           </b>
         ),

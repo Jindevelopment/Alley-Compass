@@ -46,18 +46,18 @@ export function Slider({
       max={max}
       step={step}
       className={cn(
-        "relative flex h-5 w-full touch-none select-none items-center",
+        "relative flex h-8 w-full touch-none select-none items-center",
         "data-[disabled]:opacity-55",
         className,
       )}
       {...rest}
     >
-      <RadixSlider.Track className="relative h-1 w-full grow overflow-hidden rounded-full bg-border">
+      <RadixSlider.Track className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-border">
         <RadixSlider.Range className="absolute h-full bg-accent" />
       </RadixSlider.Track>
       <RadixSlider.Thumb
         className={cn(
-          "block size-4 rounded-full border-2 border-accent bg-surface shadow-xs",
+          "block size-6 rounded-full border-2 border-accent bg-surface shadow-xs",
           "transition-transform duration-100 hover:scale-110",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:ring-offset-2 focus-visible:ring-offset-surface",
         )}

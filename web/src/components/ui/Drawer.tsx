@@ -38,14 +38,14 @@ export function Drawer({ open, onOpenChange, title, header, children, className 
 
         <Dialog.Content
           className={cn(
-            "fixed inset-y-0 right-0 z-50 flex w-full max-w-[min(42rem,100vw)] flex-col",
+            "fixed inset-y-0 right-0 z-50 flex w-full max-w-[min(46rem,100vw)] flex-col",
             "border-l border-border bg-surface shadow-lg",
             "data-[state=open]:animate-[drawer-in_0.26s_var(--ease-out-quart)]",
             "focus:outline-none",
             className,
           )}
         >
-          <div className="flex items-start gap-3 border-b border-border px-5 py-4">
+          <div className="flex items-center gap-3 border-b border-border px-5 py-3">
             <div className="min-w-0 flex-1">
               {header ?? <Dialog.Title className="text-lg font-semibold text-fg">{title}</Dialog.Title>}
             </div>
@@ -53,12 +53,12 @@ export function Drawer({ open, onOpenChange, title, header, children, className 
             <Dialog.Close
               aria-label="닫기"
               className={cn(
-                "shrink-0 rounded-md p-1.5 text-fg-subtle",
+                "flex size-11 shrink-0 items-center justify-center rounded-md text-fg-muted",
                 "transition-colors hover:bg-surface-sunken hover:text-fg",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35",
               )}
             >
-              <X aria-hidden="true" className="size-4" />
+              <X aria-hidden="true" className="size-5" />
             </Dialog.Close>
           </div>
 

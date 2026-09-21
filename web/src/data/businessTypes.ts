@@ -65,3 +65,12 @@ export const INITIAL_CONDITIONS: Conditions = {
 };
 
 export const BUDGET_RANGE = { min: 1000, max: 15000, step: 500 } as const;
+
+/** 목록 배지처럼 좁은 자리용 짧은 이름 */
+export const AXIS_SHORT = {
+  demand: "수요",
+  competition: "경쟁 여유",
+  performance: "매출 추세",
+  access: "접근성",
+  stability: "폐업 안정성",
+} as const;

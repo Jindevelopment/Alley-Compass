@@ -36,25 +36,27 @@ export function ChatLog({ messages, emptyHint, className }: ChatLogProps) {
       role="log"
       aria-live="polite"
       aria-label="분석 대화 기록"
-      className={cn("scroll-slim flex flex-col gap-2.5 overflow-y-auto", className)}
+      className={cn("scroll-slim flex flex-col gap-4 overflow-y-auto", className)}
     >
-      {messages.length === 0 ? <p className="text-xs text-fg-subtle">{emptyHint}</p> : null}
+      {messages.length === 0 && emptyHint ? (
+        <p className="w-fit max-w-[88%] rounded-2xl rounded-bl-md bg-surface-sunken px-4 py-3 text-base leading-relaxed text-fg-body">
+          {emptyHint}
+        </p>
+      ) : null}
 
       {messages.map((m) => (
-        <div
-          key={m.id}
-          className={
-            m.from === "user"
-              ? "max-w-[85%] self-end rounded-xl rounded-br-sm bg-accent-subtle px-3 py-2"
-              : "max-w-[92%] rounded-xl rounded-bl-sm bg-surface-sunken px-3 py-2"
-          }
-        >
-          <p className="mb-0.5 font-mono text-2xs uppercase tracking-wider text-fg-subtle">
-            {m.from === "user" ? "나" : "골목 컴퍼스"}
-          </p>
-          <p className="text-xs leading-relaxed text-fg-body">
+        <div key={m.id} className={cn("flex", m.from === "user" ? "justify-end" : "justify-start")}>
+          <div
+            className={cn(
+              "max-w-[88%] px-4 py-3 text-base leading-relaxed",
+              m.from === "user"
+                ? "rounded-2xl rounded-br-md bg-accent text-accent-fg"
+                : "rounded-2xl rounded-bl-md bg-surface-sunken text-fg",
+            )}
+          >
+            <span className="sr-only">{m.from === "user" ? "나: " : "골목 컴퍼스: "}</span>
             <Rich parts={m.parts} />
-          </p>
+          </div>
         </div>
       ))}
     </div>
