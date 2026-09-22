@@ -124,6 +124,14 @@ Claude를 부르지 않으므로 과금이 없다. 백분위는 `verification_to
 쓴다 — 화면의 "상위 N%"와 검증 Tool의 판정이 어긋나면 안 되기 때문이다. 평면 컬럼(로컬
 디버그 CSV)과 `extra_features` JSONB(Supabase) 양쪽에서 값을 읽는다.
 
+`backend/ratelimit.py` — `/parse-condition`·`/agents`·`/report`(전부 Claude 호출)에
+사용자별 1시간 크레딧 한도를 건다. 로그인만으로는 반복 호출을 못 막아서인데,
+메모리 기반이라 인스턴스 하나에서만 유효하다(수평 확장 시 Redis 등으로 교체 필요).
+
+`backend/main.py`의 `get_frame()`은 `district_features`를 프로세스 메모리에 캐시하고
+`FRAME_CACHE_TTL_SECONDS`(기본 6시간)마다 자동으로 다시 읽는다. ETL로 새 분기를
+Supabase에 올려도 이 시간 전엔 화면에 안 보인다 — 즉시 반영하려면 서버를 재시작한다.
+
 `web/` — React + TypeScript 프론트. 상세는 `web/README.md`. 요점만:
 
 - **프론트는 숫자를 계산하지 않는다.** 점수·백분위·진단은 전부 backend가 내려준 값이다.

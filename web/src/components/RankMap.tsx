@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { MapPinOff } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { type KakaoMapInstance, loadKakaoMaps } from "@/lib/kakaoMaps";
 import type { DistrictScore } from "@/types/api";
@@ -61,6 +62,19 @@ export function RankMap({ ranking, selectedCode, onSelect }: RankMapProps) {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const withGeo = useMemo(
+    () =>
+      ranking.filter(
+        (r): r is DistrictScore & { latitude: number; longitude: number } =>
+          r.latitude != null && r.longitude != null,
+      ),
+    [ranking],
+  );
+  // district_geo.py로 아직 좌표가 안 채워진 상권만 모여 있으면 지도에 원이 하나도
+  // 안 찍힌다. 그걸 그냥 빈 회색 지도로 두면 "지도가 고장났나"로 보이므로,
+  // 이 조건에서는 그 이유를 그대로 설명하는 안내로 바꾼다.
+  const noGeoData = ranking.length > 0 && withGeo.length === 0;
+
   // SDK 로드 + 지도 인스턴스 생성. 한 번만 한다.
   useEffect(() => {
     let cancelled = false;
@@ -97,10 +111,6 @@ export function RankMap({ ranking, selectedCode, onSelect }: RankMapProps) {
     overlaysRef.current = [];
     infoWindow?.close();
 
-    const withGeo = ranking.filter(
-      (r): r is DistrictScore & { latitude: number; longitude: number } =>
-        r.latitude != null && r.longitude != null,
-    );
     if (withGeo.length === 0) return;
 
     const colors = {
@@ -168,7 +178,7 @@ export function RankMap({ ranking, selectedCode, onSelect }: RankMapProps) {
     });
 
     map.setBounds(bounds);
-  }, [ranking, selectedCode, status, onSelect]);
+  }, [withGeo, selectedCode, status, onSelect]);
 
   return (
     <section
@@ -181,12 +191,25 @@ export function RankMap({ ranking, selectedCode, onSelect }: RankMapProps) {
         <div
           ref={containerRef}
           role="img"
-          aria-label="추천 상권 위치를 원으로 표시한 지도. 숫자는 목록의 순위와 같고, 원 크기는 상권 면적, 색은 생존 안정성 점수를 나타낸다."
+          aria-label={
+            noGeoData
+              ? "지도. 이번 결과에는 좌표가 등록된 상권이 없어 표시할 내용이 없다."
+              : "추천 상권 위치를 원으로 표시한 지도. 숫자는 목록의 순위와 같고, 원 크기는 상권 면적, 색은 생존 안정성 점수를 나타낸다."
+          }
           className="absolute inset-0"
         />
       )}
 
-      {status === "ready" ? (
+      {status === "ready" && noGeoData ? (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6">
+          <p className="pointer-events-auto flex max-w-xs flex-col items-center gap-2 rounded-2xl bg-surface/95 px-5 py-4 text-center text-sm leading-relaxed text-fg-body shadow-md backdrop-blur">
+            <MapPinOff aria-hidden="true" className="size-5 text-fg-muted" />
+            이번 결과에는 아직 지도 좌표가 등록된 상권이 없어요. 왼쪽 목록에서 확인해 주세요.
+          </p>
+        </div>
+      ) : null}
+
+      {status === "ready" && !noGeoData ? (
         <p className="pointer-events-none absolute bottom-4 left-4 right-4 z-10 rounded-full bg-surface/95 px-4 py-2 text-center text-xs font-medium text-fg-body shadow-md backdrop-blur sm:right-auto sm:text-left">
           숫자 = 목록 순위 · 색 = 점수(초록 75+ · 청록 60~74 · 빨강 60 미만)
         </p>

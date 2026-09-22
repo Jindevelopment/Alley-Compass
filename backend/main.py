@@ -52,6 +52,12 @@ from verification_tools import (  # noqa: E402
 
 from auth import CurrentUser, require_user  # noqa: E402
 from detail import build_detail  # noqa: E402
+from ratelimit import (  # noqa: E402
+    AGENT_CREDIT_LIMIT_PER_HOUR,
+    PARSE_CREDIT_LIMIT_PER_HOUR,
+    RateLimitExceeded,
+    charge,
+)
 
 from schemas import (  # noqa: E402
     AgentRequest,
@@ -94,7 +100,25 @@ app.add_middleware(
 )
 
 _FRAME_CACHE: pd.DataFrame | None = None
+_FRAME_CACHE_LOADED_AT: float | None = None
 _USE_SUPABASE = os.getenv("BACKEND_USE_SUPABASE", "false").strip().lower() == "true"
+
+
+def _frame_cache_ttl_seconds() -> int:
+    default = 6 * 3600  # 6시간 — ETL은 분기(3개월)마다 도는데, 그보다 훨씬 촘촘히 확인할
+    # 이유는 없다. 다만 "몇 시간 안엔 새로 올린 데이터가 반영된다"는 보장은 주고 싶어서
+    # 하루보단 짧게 잡았다.
+    raw = os.getenv("FRAME_CACHE_TTL_SECONDS", "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+FRAME_CACHE_TTL_SECONDS = _frame_cache_ttl_seconds()
 
 
 def get_frame(refresh: bool = False) -> pd.DataFrame:
@@ -110,8 +134,20 @@ def get_frame(refresh: bool = False) -> pd.DataFrame:
     죽는 걸 확인했다. 과거 분기가 필요한 화면(상권 하나의 추이 차트)은
     load_district_history()로 그때그때 작게 따로 받는다 — district_detail()
     참고.
+
+    캐시는 그냥 두면 프로세스가 사는 동안 영원히 안 바뀐다(예전엔 실제로
+    그랬다) — alley_compass_etl.py로 새 분기를 Supabase에 올려도, 서버를
+    수동 재시작하기 전까진 화면에 반영되지 않았다. Render 무료 플랜은 15분
+    유휴면 재워서 우연히 매번 새로 읽혔을 뿐, 유료 플랜으로 올리거나
+    트래픽이 끊이지 않으면 이 문제가 그대로 드러난다. 그래서 캐시가
+    FRAME_CACHE_TTL_SECONDS(기본 6시간)보다 오래됐으면 다음 요청에서
+    자동으로 다시 읽는다. 갱신이 실패해도(Supabase 일시 오류 등) 이미 있는
+    캐시로 계속 서비스한다 — 캐시가 몇 시간 더 오래된 것과, 있던 서비스가
+    아예 죽는 것 중 후자가 훨씬 나쁘다.
     """
-    global _FRAME_CACHE
+    global _FRAME_CACHE, _FRAME_CACHE_LOADED_AT
+    now = time.monotonic()
+
     if _FRAME_CACHE is None or refresh:
         try:
             _FRAME_CACHE = load_feature_frame(use_supabase=_USE_SUPABASE, latest_only=_USE_SUPABASE)
@@ -137,7 +173,21 @@ def get_frame(refresh: bool = False) -> pd.DataFrame:
                 status_code=503,
                 detail="상권 데이터를 불러오는 중 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
             ) from exc
+        _FRAME_CACHE_LOADED_AT = now
         log(f"district_features 로드: {len(_FRAME_CACHE):,}행 (source={'supabase' if _USE_SUPABASE else 'csv'})")
+    elif _FRAME_CACHE_LOADED_AT is not None and now - _FRAME_CACHE_LOADED_AT > FRAME_CACHE_TTL_SECONDS:
+        try:
+            fresh = load_feature_frame(use_supabase=_USE_SUPABASE, latest_only=_USE_SUPABASE)
+        except Exception as exc:  # noqa: BLE001 — 갱신 실패는 기존 캐시로 넘어간다(위 설명 참고)
+            # 다음 요청마다 다시 시도하며 Supabase를 두드리지 않도록, 실패해도
+            # 시각은 갱신해 다음 시도까지 최소 TTL만큼 간격을 둔다.
+            _FRAME_CACHE_LOADED_AT = now
+            log(f"district_features 캐시 갱신 실패, 기존 캐시로 계속 서비스({exc})")
+        else:
+            _FRAME_CACHE = fresh
+            _FRAME_CACHE_LOADED_AT = now
+            log(f"district_features 캐시 갱신: {len(_FRAME_CACHE):,}행")
+
     return _FRAME_CACHE
 
 
@@ -169,6 +219,18 @@ def get_business_types(refresh: bool = False) -> pd.DataFrame:
             _BUSINESS_TYPES_CACHE.dropna().drop_duplicates().sort_values("business_name").reset_index(drop=True)
         )
     return _BUSINESS_TYPES_CACHE
+
+
+def _charge_or_429(bucket: str, user_id: str, credits: int, limit: int) -> None:
+    """ratelimit.charge()를 부르고, 한도 초과면 429로 바꿔 던진다.
+    프론트는 이 문구를 그대로 보여준다(web/src/lib/api.ts의 ApiError)."""
+    try:
+        charge(bucket, user_id, credits, limit)
+    except RateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=f"AI 호출이 너무 잦습니다. {exc.retry_after_seconds}초 후 다시 시도해 주세요.",
+        ) from exc
 
 
 def _condition_text(req: RankRequest | AgentRequest | ReportRequest) -> str:
@@ -268,7 +330,7 @@ def business_types(_user: CurrentUser = Depends(require_user)) -> list[dict]:
 @app.post("/parse-condition", response_model=ParseConditionResponse)
 def parse_condition_endpoint(
     req: ParseConditionRequest,
-    _user: CurrentUser = Depends(require_user),
+    user: CurrentUser = Depends(require_user),
 ) -> ParseConditionResponse:
     """ConditionBar를 대체하는 자연어 입력. PRD F-12 대화형 재탐색.
 
@@ -277,6 +339,7 @@ def parse_condition_endpoint(
     Claude가 뭐라 답하든 실제 수집된 업종 목록으로 다시 확인한다
     (condition_parser.parse_condition 안에서 처리).
     """
+    _charge_or_429("parse", user.user_id, 1, PARSE_CREDIT_LIMIT_PER_HOUR)
     biz_df = get_business_types()
     businesses = biz_df.to_dict(orient="records")
 
@@ -391,13 +454,14 @@ def district_detail(
 def district_agents(
     district_code: str,
     req: AgentRequest,
-    _user: CurrentUser = Depends(require_user),
+    user: CurrentUser = Depends(require_user),
 ) -> AgentResponse:
     """PRD §10 Recommendation/Risk/Verification Agent 체인.
 
     Claude API를 실제로 호출하므로 과금이 발생한다 — /rank와 분리된 별도
     엔드포인트로 둔 이유다.
     """
+    _charge_or_429("agent", user.user_id, 2, AGENT_CREDIT_LIMIT_PER_HOUR)
     df = get_frame()
     biz_rows = df[df["business_code"] == req.business_code]
     row = biz_rows[biz_rows["district_code"] == str(district_code)]
@@ -450,7 +514,7 @@ def district_agents(
 
 
 @app.post("/report")
-def report(req: ReportRequest, _user: CurrentUser = Depends(require_user)) -> Response:
+def report(req: ReportRequest, user: CurrentUser = Depends(require_user)) -> Response:
     """PRD F-15. Top-K 상권 + 각 상권의 추천/반대 근거를 PDF 한 장으로 묶는다.
 
     상권마다 Recommendation + Risk Agent를 호출하므로(최대 10곳 x 2회) 응답까지
@@ -458,6 +522,11 @@ def report(req: ReportRequest, _user: CurrentUser = Depends(require_user)) -> Re
     이유다. 개별 상권에서 Claude 호출이 실패해도 그 상권만 오류를 표시하고
     나머지는 계속 진행한다(전체 리포트가 한 상권 때문에 실패하지 않도록).
     """
+    # top_k 만큼 agents 를 반복 호출하는 것과 같은 비용이라 크레딧도 그만큼 문다.
+    # WeasyPrint 를 확인하기 전에 먼저 검사한다 — 한도를 넘겼는데 "PDF 라이브러리가
+    # 없다"는 무관한 오류부터 보이면 진짜 원인을 못 찾는다.
+    _charge_or_429("agent", user.user_id, req.top_k * 2, AGENT_CREDIT_LIMIT_PER_HOUR)
+
     # report.py 는 WeasyPrint 를 import 하고, WeasyPrint 는 그 순간 Pango/GTK
     # 시스템 라이브러리를 불러온다. 모듈 맨 위에서 import 하면 이 라이브러리가
     # 없는 PC(Windows 기본 상태)에서 서버 전체가 뜨지 못한다. PDF 는 부가 기능이라

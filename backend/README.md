@@ -6,12 +6,24 @@ verification_tools.py)을 그대로 재사용하는 FastAPI 백엔드. 새 판�
 
 ## 실행
 
+conda 없이 표준 `venv`로 실행한다. 가상환경은 저장소 루트에 하나만 만들면 된다 —
+`backend/main.py`가 `alley_compass_etl` 모듈을 그대로 import하므로, `backend/`
+것만 설치하면 `ModuleNotFoundError`가 난다. 두 `requirements.txt`를 함께 설치한다.
+
 ```bash
-conda activate alleycompass
+# 저장소 루트에서
+python3 -m venv .venv
+source .venv/bin/activate        # Windows는 .venv\Scripts\activate
+
+pip install -r backend/requirements.txt -r alley_compass_etl/requirements.txt
+
 cd backend
-pip install -r requirements.txt   # alleycompass 환경엔 이미 다 있을 것
+cp ../alley_compass_etl/.env.example ../alley_compass_etl/.env   # 처음 한 번, 값 채우기
 uvicorn main:app --reload --port 8000
 ```
+
+다음부터 백엔드만 다시 띄울 때는 가상환경 활성화 후 `cd backend && uvicorn main:app
+--reload --port 8000`이면 된다.
 
 기본은 로컬 CSV(`alley_compass_etl/data/processed/district_features_debug.csv`)를
 읽는다. Supabase로 전환하려면 `alley_compass_etl/.env`에
@@ -73,6 +85,33 @@ Python 서버리스 런타임은 `report.py`가 쓰는 WeasyPrint(Pango/Cairo �
 여기 넣으면 안 되고, 근거 생성은 사용자가 실제로 펼쳐본 상위 몇 곳에 대해서만
 필요하다. `/report`는 그 근거 생성을 Top-K개만큼 자동으로 반복해 PDF로
 묶어주는 것뿐 — 새 판정 로직은 없다(`report.py`는 HTML 렌더링 + PDF 변환만).
+
+### 사용자별 Claude 호출 한도
+
+`/parse-condition`·`/districts/{code}/agents`·`/report`는 로그인한 사용자면
+누구든 부를 수 있어서, `require_user`만으로는 짧은 시간 반복 호출(실수든
+악용이든)을 막지 못한다. `ratelimit.py`가 호출마다 대략적인 크레딧을 매겨
+사용자별 1시간 합이 한도를 넘으면 `429`를 준다. 한도는 `.env`의
+`PARSE_CREDIT_LIMIT_PER_HOUR`(기본 60) / `AGENT_CREDIT_LIMIT_PER_HOUR`(기본
+40)로 조정한다. 메모리 기반이라 프로세스(인스턴스) 하나 안에서만 유효하다 —
+여러 워커로 수평 확장하면 Redis 같은 공유 저장소로 옮겨야 한다.
+
+### district_features 캐시 갱신 주기
+
+`/rank`·`/agents`·`/report`·`/districts`가 쓰는 상권 데이터(`get_frame()`)는
+서버가 켜질 때 메모리에 한 번 올려두고 계속 재사용한다(요청마다 다시 읽지
+않으려고). 예전엔 이 캐시를 프로세스가 사는 동안 절대 다시 안 읽었는데 —
+`alley_compass_etl.py`로 Supabase에 새 분기를 올려도 서버를 수동 재시작하기
+전엔 화면에 반영되지 않았다. Render 무료 플랜은 15분 유휴면 재워서 우연히
+매번 새로 읽혔을 뿐이다.
+
+지금은 캐시가 `FRAME_CACHE_TTL_SECONDS`(`.env`, 기본 6시간)보다 오래되면
+다음 요청에서 자동으로 다시 읽는다. 갱신이 실패해도(Supabase 일시 오류 등)
+있던 캐시로 계속 서비스하고, 다음 시도까지는 최소 그 시간만큼 간격을 둔다
+(연속 실패로 매 요청마다 Supabase를 두드리지 않기 위해서). 유료 플랜으로
+올리거나 트래픽이 끊이지 않아 서버가 계속 켜져 있는 배포에서 중요해진다 —
+"새로 올렸는데 왜 안 바뀌지?"를 몇 시간 안에 저절로 해결해 준다. 지금 바로
+반영하고 싶으면 서버를 재시작하면 된다(재시작 즉시 새로 읽는다).
 
 ### `/report` 사용 예
 

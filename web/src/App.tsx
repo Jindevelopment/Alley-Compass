@@ -138,6 +138,13 @@ export default function App() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   const messageId = useRef(0);
+  /** /rank 요청 번호표. 조건을 빠르게 여러 번 바꾸면 요청이 여러 개 동시에
+   * 나갈 수 있는데, "나중에 보낸 요청이 항상 나중에 도착한다"는 보장이 없다
+   * (네트워크 지연은 요청 순서와 무관하다). runRank()가 응답을 받을 때마다
+   * 이 번호와 비교해 "아직 최신 요청인가"를 확인하고, 그 사이 더 최신 요청이
+   * 나갔으면 응답을 버린다 — 안 그러면 사용자가 방금 고른 조건이 아니라 그
+   * 전 조건의 결과가 화면에 남을 수 있다. */
+  const rankRequestId = useRef(0);
 
   const say = useCallback((from: Message["from"], parts: RichParts) => {
     setMessages((prev) => [...prev, { id: messageId.current++, from, parts }]);
@@ -162,9 +169,13 @@ export default function App() {
     (next: Conditions, onDone?: (res: RankResponse) => void, record = false) => {
       if (!next.biz) return;
 
+      const requestId = ++rankRequestId.current;
+      const isStale = () => requestId !== rankRequestId.current;
+
       setLoading(true);
       fetchRank(next, TOP_K)
         .then((res) => {
+          if (isStale()) return; // 그 사이 더 최신 요청이 나갔다 — 이 응답은 버린다
           setMeta(res);
           setError(null);
           if (record && userId) {
@@ -182,8 +193,14 @@ export default function App() {
           }
           onDone?.(res);
         })
-        .catch(handleError)
-        .finally(() => setLoading(false));
+        .catch((e: unknown) => {
+          if (isStale()) return;
+          handleError(e);
+        })
+        .finally(() => {
+          if (isStale()) return;
+          setLoading(false);
+        });
     },
     [handleError, userId],
   );
@@ -442,7 +459,12 @@ export default function App() {
     return <LoadingScreen stage={bizOptions.length === 0 ? 2 : 3} />;
   }
 
-  const tabsVisible = onboarded && !error;
+  /* 탭 자체는 업종 목록만 받아오면(bizOptions 로딩 완료) 바로 보여준다 — 첫 조건을
+   * 아직 입력하지 않은 사용자도 "이 서비스에 이런 기능이 있다"를 알아야 하고,
+   * 저장된 조건이 더 이상 유효하지 않아 onboarded=false로 돌아간 사용자도(예: 그
+   * 업종이 더는 수집되지 않는 경우) 기록 탭만큼은 예전처럼 계속 볼 수 있어야
+   * 한다. onboarded로 탭 자체를 숨기면 그 경우 기록에 영영 닿을 방법이 없었다. */
+  const tabsVisible = !error && bizOptions.length > 0;
 
   return (
     <>
@@ -464,7 +486,18 @@ export default function App() {
                 </Button>
               </CardBody>
             </Card>
+          ) : tab === "history" ? (
+            // 기록은 조건 입력 여부와 무관하다 — 이 브라우저에 쌓인 과거 조건을
+            // 보여줄 뿐이라, 지금 이 세션이 온보딩 전이어도 막을 이유가 없다.
+            <HistoryTab
+              entries={history}
+              onOpen={handleOpenHistory}
+              onClear={handleClearHistory}
+              onGoRecommend={() => setTab("recommend")}
+            />
           ) : !onboarded ? (
+            // 추천·물어보기·리포트는 전부 첫 조건이 있어야 의미가 생긴다 — 어느
+            // 탭을 눌렀든 조건부터 받는 이 화면으로 모은다.
             <OnboardingChat
               messages={messages}
               onParse={handleParse}
@@ -498,20 +531,15 @@ export default function App() {
               onAsk={handleAsk}
               onGoRecommend={() => setTab("recommend")}
             />
-          ) : tab === "report" ? (
+          ) : (
+            // 여기 닿는 시점엔 history(위에서 처리)·recommend·ask 가 전부 걸러져
+            // tab은 "report"만 남는다.
             <ReportTab
               conditions={conditions}
               meta={meta}
               bizLabel={bizLabel}
               onGoRecommend={() => setTab("recommend")}
               onError={messageForError}
-            />
-          ) : (
-            <HistoryTab
-              entries={history}
-              onOpen={handleOpenHistory}
-              onClear={handleClearHistory}
-              onGoRecommend={() => setTab("recommend")}
             />
           )}
         </main>

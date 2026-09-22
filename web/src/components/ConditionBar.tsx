@@ -98,7 +98,10 @@ export function ConditionBar({ conditions, bizOptions, busy, onChange, onReset }
         </Field>
 
         <Field>
-          <FieldLabel>보증금 상한</FieldLabel>
+          {/* 순위 계산에는 아직 안 쓰인다(ResultSummary의 안내 배너와 같은 이유 —
+           * scoring.py에 임차료 데이터가 없다). 값을 바꾸는 그 자리에서 바로
+           * 알아야 "왜 순위가 그대로지?"라는 오해가 안 생긴다. */}
+          <FieldLabel hint="순위엔 미반영">보증금 상한</FieldLabel>
           <Select
             options={budgetOptions}
             value={String(conditions.budget)}
