@@ -6,36 +6,42 @@ verification_tools.py)을 그대로 재사용하는 FastAPI 백엔드. 새 판�
 
 ## 실행
 
-conda 없이 표준 `venv`로 실행한다. 가상환경은 저장소 루트에 하나만 만들면 된다 —
-`backend/main.py`가 `alley_compass_etl` 모듈을 그대로 import하므로, `backend/`
-것만 설치하면 `ModuleNotFoundError`가 난다. 두 `requirements.txt`를 함께 설치한다.
+가상환경은 저장소 루트에 하나만 만든다. `backend/main.py`가 `alley_compass_etl`
+모듈을 그대로 import하므로 **두 `requirements.txt`를 함께** 설치해야 한다.
 
 ```bash
-# 저장소 루트에서
+# 저장소 루트에서 (처음 한 번)
 python3 -m venv .venv
-source .venv/bin/activate        # Windows는 .venv\Scripts\activate
-
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r backend/requirements.txt -r alley_compass_etl/requirements.txt
+cp alley_compass_etl/.env.example alley_compass_etl/.env   # 값 채우기
 
-cd backend
-cp ../alley_compass_etl/.env.example ../alley_compass_etl/.env   # 처음 한 번, 값 채우기
-uvicorn main:app --reload --port 8000
+# 실행 (가상환경 활성화 후)
+cd backend && uvicorn main:app --reload --port 8000
 ```
 
-다음부터 백엔드만 다시 띄울 때는 가상환경 활성화 후 `cd backend && uvicorn main:app
---reload --port 8000`이면 된다.
+http://localhost:8000/docs 에서 Swagger UI로 바로 테스트할 수 있다(로그인 토큰 필요).
 
 기본은 로컬 CSV(`alley_compass_etl/data/processed/district_features_debug.csv`)를
-읽는다. Supabase로 전환하려면 `alley_compass_etl/.env`에
+읽는다. Supabase를 쓰려면 `alley_compass_etl/.env`에 `BACKEND_USE_SUPABASE=true`를
+추가한다 (`db/schema_v1.1.sql`의 v1.2 패치 — `service_role` GRANT — 가 먼저 적용돼
+있어야 한다).
 
-```
-BACKEND_USE_SUPABASE=true
-```
+### 환경변수
 
-를 추가한다 (단, `db/schema_v1.1.sql`의 v1.2 패치 — `service_role` GRANT —
-가 먼저 Supabase에 적용돼 있어야 한다).
+전부 `alley_compass_etl/.env`에 둔다. 설명은 `.env.example`에 주석으로 있다.
 
-http://localhost:8000/docs 에서 Swagger UI로 바로 테스트 가능.
+| 변수 | 용도 |
+|---|---|
+| `SUPABASE_URL` · `SUPABASE_SECRET_KEY` | DB 조회 · 로그인 토큰 검증 (서버 전용 키) |
+| `SUPABASE_JWT_SECRET` | 구형(HS256) 프로젝트만 |
+| `ANTHROPIC_API_KEY` | `/parse-condition` · `/agents` · `/report` |
+| `BACKEND_USE_SUPABASE` | `true`면 Supabase, 기본은 로컬 CSV |
+| `CORS_ORIGINS` | 허용할 웹 주소(쉼표 구분). 기본 `http://localhost:5173` |
+| `PARSE_CREDIT_LIMIT_PER_HOUR` · `AGENT_CREDIT_LIMIT_PER_HOUR` | Claude 호출 한도 (기본 60 · 40) |
+| `FRAME_CACHE_TTL_SECONDS` | 상권 데이터 캐시 갱신 주기 (기본 21600 = 6시간) |
+
+운영자가 계정을 직접 만들 때는 `python scripts/create_user.py <이메일>` (`backend/`에서).
 
 ## 배포 (Render)
 
@@ -71,20 +77,23 @@ Python 서버리스 런타임은 `report.py`가 쓰는 WeasyPrint(Pango/Cairo �
 
 ## 엔드포인트
 
+`/health`를 뺀 전부가 로그인(`Authorization: Bearer <access_token>`)을 요구한다.
+
 | | | 비용 |
 |---|---|---|
-| `GET /health` | 상태 확인 | 무료 |
+| `GET /health` | 상태 확인 + 지금 붙어 있는 모델 버전 | 무료 |
 | `GET /business-types` | 업종 목록 | 무료 |
 | `GET /districts?business_code=` | 상권 목록 | 무료 |
-| `POST /rank` | 조건 기반 전체 재랭킹 (PRD §16) | 무료 (결정론적, Claude 미사용) |
-| `POST /districts/{code}/agents` | 추천/반대 근거 생성 + 검증 (PRD §10) | **Claude API 과금 발생** |
-| `POST /report` | Top-K 상권 + 각각의 추천/반대 근거를 PDF 한 장으로 (PRD F-15) | **Claude API 과금 발생** (상권당 최대 2회, `top_k` 1~10) |
+| `POST /parse-condition` | 자연어 → 조건(업종·예산·타깃 등) | **Claude** (1 크레딧) |
+| `POST /rank` | 조건 기반 전체 재랭킹 (PRD §16) | 무료 |
+| `GET /districts/{code}/detail?business_code=` | 상권 진단 4영역 + 시계열 | 무료 |
+| `POST /districts/{code}/agents` | 추천/반대 근거 생성 + 검증 (PRD §10) | **Claude** (2 크레딧, 최소 4회 호출) |
+| `POST /report` | Top-K 상권 + 근거를 PDF 한 장으로 (PRD F-15) | **Claude** (`top_k`×2 크레딧, `top_k` 1~10) |
 
-`/rank`와 `/districts/{code}/agents`를 분리해 둔 이유: 랭킹은 서울 전체
-후보(1,000개 이상)를 매번 다시 계산해야 하므로 비용이 드는 Claude 호출을
-여기 넣으면 안 되고, 근거 생성은 사용자가 실제로 펼쳐본 상위 몇 곳에 대해서만
-필요하다. `/report`는 그 근거 생성을 Top-K개만큼 자동으로 반복해 PDF로
-묶어주는 것뿐 — 새 판정 로직은 없다(`report.py`는 HTML 렌더링 + PDF 변환만).
+`/rank`와 `/agents`를 분리한 이유: 랭킹은 서울 전체 후보를 매번 다시 계산해야 하므로
+비용이 드는 Claude 호출을 넣으면 안 되고, 근거 생성은 사용자가 실제로 펼쳐본 상위
+몇 곳에 대해서만 필요하다. `/report`는 그 근거 생성을 Top-K개만큼 자동 반복해 PDF로
+묶는 것뿐 — 새 판정 로직은 없다.
 
 ### 사용자별 Claude 호출 한도
 
@@ -124,6 +133,12 @@ curl -X POST http://localhost:8000/report \
   -o report.pdf
 ```
 
+### macOS에서 LightGBM이 안 불러와질 때
+
+`OSError: ... libomp.dylib ... (no such file)`이 나거나 `/health`의 `model_version`이
+`heuristic-v0`면 OpenMP 런타임이 없는 것이다. `brew install libomp` 후 서버를 재시작한다.
+(모델 로드 실패는 예외로 죽지 않고 휴리스틱으로 대체되므로 로그에서만 드러난다.)
+
 ### macOS에서 PDF가 안 만들어질 때 (WeasyPrint)
 
 WeasyPrint는 Pango/cairo/glib를 시스템 라이브러리로 불러온다. Apple
@@ -156,10 +171,18 @@ brew install pango   # cairo/glib/harfbuzz 등 의존성도 같이 설치됨
 
 ## 모델 버전
 
-`/rank`는 아직 LightGBM이 아니라 `scoring.py`의 휴리스틱 Score를 쓴다.
-응답의 `model_version: "heuristic-v0"`로 항상 명시한다. LightGBM이 준비되면
-`scoring.rank_districts()`의 `stability_score` 계산 부분만 모델 추론으로
-바꾸면 되고, 응답 스키마(`RankResponse`)는 그대로 유지된다.
+`/rank`의 생존 안정성 Score는 `backend/models/`에 올려둔 LightGBM 아티팩트
+(`v-YYYYMMDD-HHMM.joblib`, 파일명이 가장 늦은 것)를 쓴다. 파일이 없거나 불러오지
+못하면 `scoring.py`의 휴리스틱으로 **조용히** 대체하고 서버 로그에만 남기므로,
+배포 후에는 `GET /health`나 `/rank` 응답의 `model_version`이
+`lightgbm-v-…`인지 확인한다. `heuristic-v0`면 폴백 중이다.
+
+- 점수 구성(breakdown 5축)은 모델이 쓰이든 폴백이든 휴리스틱 그대로 보여준다 —
+  "왜 이 점수인지"를 설명하는 용도다.
+- 모델 추론에 필요한 의존성은 `lightgbm` · `scikit-learn` · `joblib`이다.
+  (`LGBMClassifier` pickle을 복원하려면 sklearn이 필요하다. Docker 이미지에는
+  OpenMP 런타임 `libgomp1`도 들어 있다.)
+- 새 모델 승격 방법은 [`ml/README.md`](../ml/README.md).
 
 ## 세션 기록
 

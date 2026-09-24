@@ -2,14 +2,19 @@
 
 ## 1. 설치
 
+가상환경은 저장소 루트의 `.venv` 하나를 백엔드와 같이 쓴다(루트 `README.md`의
+"빠른 시작"). 이 폴더의 모든 명령은 `alley_compass_etl/`에서 실행한다.
+
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
+# 저장소 루트에서 처음 한 번
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r backend/requirements.txt -r alley_compass_etl/requirements.txt
+cp alley_compass_etl/.env.example alley_compass_etl/.env
+
+cd alley_compass_etl
 ```
 
-`.env`에 다음 3개를 입력합니다.
+`.env`에 ETL은 다음 3개가 필요합니다(Agent를 쓰면 `ANTHROPIC_API_KEY`도).
 
 - `SEOUL_API_KEY`
 - `SUPABASE_URL`
@@ -46,6 +51,8 @@ python alley_compass_etl.py \
   --business-name "커피-음료"
 ```
 
+재실행해도 안전하다(전부 upsert). 이어서 지도용 좌표를 채운다 — 아래 §6.
+
 ---
 
 ## 4. MVP 업종 여러 개
@@ -81,7 +88,21 @@ python alley_compass_etl.py \
 
 ---
 
-## 6. RAW를 다시 받고 싶을 때
+## 6. 상권 좌표·구·면적 (지도용)
+
+```bash
+python district_geo.py            # 조회만
+python district_geo.py --upload   # districts 테이블에 반영
+```
+
+서울시 "영역-상권" API는 이름과 달리 다각형이 아니라 **중심점 좌표 + 면적**만 줍니다.
+웹 지도가 이 값으로 면적 비례 원을 그립니다. 이미 ETL로 적재된 `district_code`에만 반영하며,
+`db/schema_v1.1.sql`의 v1.4 패치(`area_m2` 컬럼)를 먼저 적용해야 합니다. 이걸 안 돌리면
+지도에는 "좌표가 등록된 상권이 없다"는 안내가 뜹니다.
+
+---
+
+## 7. RAW를 다시 받고 싶을 때
 
 ```bash
 python alley_compass_etl.py ... --refresh
@@ -91,7 +112,7 @@ python alley_compass_etl.py ... --refresh
 
 ---
 
-## 7. Verification Tools (PRD §11)
+## 8. Verification Tools (PRD §11)
 
 Recommendation/Risk Agent가 만든 문장을 원본 데이터와 대조하는 6개 Tool.
 LLM을 쓰지 않고 전부 Pandas/통계 연산으로 판정한다 (PRD §10.3, §18).
@@ -138,7 +159,7 @@ Recommendation/Risk/Verification 에이전트 체인을 붙일 때 그대로 쓰
 
 ---
 
-## 8. Recommendation / Risk / Verification Agent 파이프라인 (PRD §9~§10)
+## 9. Recommendation / Risk / Verification Agent 파이프라인 (PRD §9~§10)
 
 ```
 Feature(district_features)
@@ -172,9 +193,9 @@ python pipeline.py --district-code 3120014 --business-code CS100010 \
 (PRD §10.3), 그래도 틀리면 그 문장은 최종 결과에서 제외한다
 (PRD §18, Unsupported Claim Rate 목표 0%).
 
-LightGBM 생존 안정성 Score는 아직 없어 Fact Sheet에 포함되어 있지
-않다. 모델이 준비되면 `fact_sheet.build_fact_sheet()`에 한 줄
-추가하면 된다.
+LightGBM 생존 안정성 Score는 Fact Sheet에 포함되어 있지 않다(랭킹에는 쓰이지만
+Agent 문장의 근거로는 아직 쓰지 않는다). 넣으려면 `fact_sheet.build_fact_sheet()`에
+한 줄 추가하면 된다.
 
 ---
 
@@ -195,10 +216,10 @@ demand_per_store = backing_demand / store_count
 값이 클수록 점포 하나가 나눠 갖는 수요가 커서 경쟁이 여유롭다는 뜻입니다.
 `store_count`가 0이면 나누지 않고 NULL로 둡니다.
 
-`verification_tools.competition_density()`와 웹 프론트(`web/src/lib/scoring.js`)가
+`verification_tools.competition_density()`, `backend/scoring.py`, `backend/detail.py`가
 같은 정의를 사용하므로, 화면에 보이는 경쟁강도와 검증 Tool의 판정 기준이 일치합니다.
 
-### `districts.gu_name`, `latitude`, `longitude`
+### `districts.gu_name`, `latitude`, `longitude`, `area_m2`
 
-현재 5종 API의 상권 행에는 자치구/위경도가 포함되지 않습니다.
-지도 기능을 붙일 때 `영역-상권` 데이터 또는 별도 geocoding 파이프라인으로 추가합니다.
+6종 데이터에는 자치구·위경도·면적이 없어서 `alley_compass_etl.py`는 이 컬럼들을
+NULL로 둡니다. `district_geo.py`(§6)가 별도 API로 채우며, 아직 안 돌렸다면 NULL입니다.

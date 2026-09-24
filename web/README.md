@@ -3,18 +3,25 @@
 `backend/` FastAPI 를 호출해 상권 랭킹·진단·근거를 보여주는 화면이다.
 
 ```bash
-# 1) 백엔드 먼저 (다른 터미널)
+# 1) 백엔드 먼저 (다른 터미널, 루트 가상환경 활성화 후)
 cd ../backend && uvicorn main:app --reload --port 8000
 
-# 2) 웹
+# 2) 웹 — web/ 에서
+cp .env.example .env.local   # 처음 한 번, 값 채우기
 npm install
 npm run dev        # http://localhost:5173
 npm run build      # tsc -b && vite build
 npm run typecheck  # 타입만 검사
 ```
 
-기본으로 `http://localhost:8000` 의 백엔드를 본다. 다른 주소를 쓰려면
-`.env.example` 을 `.env.local` 로 복사해 `VITE_API_BASE_URL` 을 바꾼다.
+`.env.local` 에 넣는 값(전부 공개돼도 되는 것만):
+
+| 변수 | 용도 |
+|---|---|
+| `VITE_API_BASE_URL` | 백엔드 주소. 비우면 `http://localhost:8000` |
+| `VITE_SUPABASE_URL` · `VITE_SUPABASE_ANON_KEY` | 로그인(Supabase Auth). 예시값이 남아 있으면 로그인 화면에 설정 안내가 뜬다 |
+| `VITE_AUTH_PROVIDERS` | 실제로 켠 소셜 로그인만. 예: `google,kakao` |
+| `VITE_KAKAO_MAP_APPKEY` | 카카오맵 JavaScript 키(선택). 비우면 지도 카드에 안내만 뜬다 |
 
 ---
 
@@ -28,9 +35,13 @@ FastAPI 를 거쳐야 하므로, 무료 조회까지 전부 한 경로로 모았
 | 화면 | 엔드포인트 | 과금 | 언제 부르나 |
 |---|---|---|---|
 | 업종 드롭다운 | `GET /business-types` | 없음 | 최초 1회 |
-| 순위 목록 · 점수 구성 | `POST /rank` | 없음 | 조건 변경 시 (예산은 500ms 디바운스) |
+| 순위 목록 · 점수 구성 · 지도 | `POST /rank` | 없음 | 조건 변경 시 (예산은 500ms 디바운스). 응답이 뒤바뀌어 도착해도 가장 최근 요청의 결과만 반영한다 |
+| 문장으로 조건 정하기 | `POST /parse-condition` | **있음** | 물어보기 탭에서 보낼 때 |
 | 상권 진단 4영역 · 시계열 | `GET /districts/{code}/detail` | 없음 | 상세를 열 때 |
 | 추천 · 반대 근거 | `POST /districts/{code}/agents` | **있음** | **버튼을 눌러야** |
+| PDF 리포트 | `POST /report` | **있음** | 리포트 탭에서 버튼을 눌러야 |
+
+Claude를 부르는 호출은 사용자별 시간당 한도가 있어 넘으면 백엔드가 429를 준다.
 
 `/agents` 는 Claude 를 최소 4번 부른다(추천 1 + 리스크 1 + 검증 2). 15~20초
 걸리고 호출마다 과금되므로 자동 실행하지 않는다. 검증을 통과하지 못한
@@ -51,10 +62,10 @@ FastAPI 를 거쳐야 하므로, 무료 조회까지 전부 한 경로로 모았
 | 상권·업종 목록, 순위, 점수 구성 | ✅ 실제 데이터 — `alley_compass_etl.py` 로 수집한 만큼만 나온다 |
 | 상권 진단 4영역, 시간대별 유동인구, 분기별 매출·폐업률 | ✅ 실제 데이터 (`GET /districts/{code}/detail`) |
 | 추천 / 반대 근거 | ✅ 실제 Claude 호출 — 버튼을 눌러야 생성 |
-| 생존 안정성 Score | ⚠️ 실제 feature 기반이지만 **LightGBM 이 아닌 휴리스틱**(`heuristic-v0`). 화면에 모델 버전을 그대로 표시한다 |
+| 생존 안정성 Score | ✅ LightGBM 예측(`lightgbm-v-…`). 모델 파일이 없는 환경에서만 휴리스틱(`heuristic-v0`)으로 대체되며, 화면에 모델 버전을 그대로 표시한다 |
+| 지도 | ✅ 카카오맵에 상권 중심점을 면적 비례 원으로 표시. `district_geo.py --upload` 로 좌표가 채워진 상권만 찍히고, 하나도 없으면 안내 문구를 띄운다 |
+| 예산 | ⚠️ 입력은 받지만 **순위에는 반영되지 않는다** — 상권별 임차료 데이터가 없어서(조건 바에 "순위엔 미반영"으로 표시) |
 | 비용 진단 (임차료·공실률) | ❌ 데이터셋에 없음 — 점선 카드로 "데이터 미보유" 표시 |
-| 지도 | ❌ 상권 위경도가 없음 — 좌표를 지어내는 대신 비워 두고 사유를 적었다 |
-| 모델 지표 (ROC-AUC 등) | ❌ 학습 전 — 숫자를 적지 않는다 |
 
 업종이 하나만 보이면 그만큼만 수집됐다는 뜻이다. 버그가 아니므로 없는 업종을
 드롭다운에 지어 넣지 않는다. 같은 이유로 "다른 업종으로 보면?" 칩은 업종이
@@ -93,7 +104,9 @@ import { Card, CardBody, Input, Select } from "@/components/ui";
 | 리포트 | 상위 N곳을 PDF 로 내려받기 (AI 사용량 발생 · 버튼을 눌러야 호출) | `/report` |
 | 기록 | 내가 바꿔 본 조건과 1위 상권. **이 브라우저에만 저장** (`lib/historyStorage.ts`) | 없음 (서버 목록 API 생기면 교체) |
 
-조건을 한 번도 정하지 않은 첫 방문자는 탭 없이 `OnboardingChat` 만 본다.
+조건을 한 번도 정하지 않은 첫 방문자는 `OnboardingChat` 을 먼저 본다. 탭 바는
+업종 목록을 불러온 뒤부터 보이며, 기록 탭은 조건을 정하기 전에도 열 수 있다.
+마지막 조건은 이 브라우저(`lib/conditionsStorage.ts`)에 저장돼 다음 방문 때 이어진다.
 
 ### 디자인 토큰 — 3계층
 
@@ -169,6 +182,9 @@ src/
     authErrors.ts    Supabase 오류 → 한국어 문장
     cn.ts            Tailwind 클래스 병합 (clsx + tailwind-merge)
     format.ts        숫자 포맷 · Score 톤 판정
+    kakaoMaps.ts     카카오맵 SDK 로더
+    conditionsStorage.ts · historyStorage.ts   마지막 조건 · 기록 탭 (브라우저 localStorage)
+    tabs.ts          주요 탭 정의
     rich.ts          근거 문장의 조각 배열 표현
     useTheme.ts      system / light / dark
   types/
@@ -182,8 +198,9 @@ src/
     auth/            SignInScreen · UpdatePasswordScreen · AuthLayout · PasswordInput
                      SocialButton (카카오·구글 가이드 준수) · AccountMenu
     legal/           PrivacyPage — /privacy, 로그인 없이 열림
-    brand/           LogoMark · Wordmark · CompassArt (로고에서 뽑은 브랜드 요소)
+    brand/           Logo(LogoMark · Wordmark) · CompassArt (로고에서 뽑은 브랜드 요소)
     tabs/            RecommendTab · AskTab · ReportTab · HistoryTab (주요 탭 4개)
+  data/              businessTypes.ts — 업종에 묶이지 않은 화면 문구 라벨 · 기본 조건
     AppHeader (탭 내비) · TabBar (모바일 하단 탭) · ConditionBar · RankList
     ResultSummary · RankMap · ScoreRing · LoadingScreen · OnboardingChat
     ChatLog · SiteFooter · Rich · ThemeToggle

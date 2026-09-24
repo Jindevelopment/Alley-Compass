@@ -726,7 +726,7 @@ def build_feature_table(
     # 값이 클수록 점포 하나가 나눠 갖는 수요가 커서 경쟁이 여유롭다.
     # competition_density 컬럼은 "면적 기반 밀도"를 뜻하므로 여기 넣지 않고
     # extra_features 로 보낸다. verification_tools.competition_density() 와
-    # 웹 프론트(web/src/lib/scoring.js)가 같은 정의를 쓴다.
+    # backend/scoring.py·detail.py가 같은 정의를 쓴다.
     demand_total = (
         base["foot_traffic"].fillna(0)
         + base["resident_population"].fillna(0)

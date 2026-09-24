@@ -16,40 +16,89 @@
 
 ## 현재 상태
 
-완성된 서비스가 아니다. 부품은 다 있고, 실제 다분기 데이터로 학습·검증하는
-마지막 단계가 남았다.
-
 | 구성 | 상태 | 위치 |
 |---|---|---|
 | 기획 (PRD v1.1) | ✅ | [`docs/PRD.md`](docs/PRD.md) |
-| DB 스키마 | ✅ 작성 완료 (Supabase 수동 적용, v1.2 service_role 패치 포함) | [`db/schema_v1.1.sql`](db/schema_v1.1.sql) |
-| 데이터 수집 파이프라인 (ETL) | ✅ 동작 | [`alley_compass_etl/`](alley_compass_etl/) |
-| 검증 Tool 6종 | ✅ 동작 (LLM 미사용, 결정론적) | [`alley_compass_etl/verification_tools.py`](alley_compass_etl/verification_tools.py) |
-| Claude 에이전트 3종 | ✅ 동작 (Sonnet 5, 라이브 검증 완료) | [`alley_compass_etl/narrative_agents.py`](alley_compass_etl/narrative_agents.py), [`fact_sheet.py`](alley_compass_etl/fact_sheet.py), [`pipeline.py`](alley_compass_etl/pipeline.py) |
-| 웹 프론트 | ✅ `backend/`에 연결됨 · 로그인 필수(Supabase Auth: 이메일 · Google · 카카오) · React 19 + TypeScript + Tailwind 4, 자체 디자인 시스템 | [`web/`](web/) |
-| FastAPI 백엔드 | ✅ 동작 (`/rank`, `/districts/{code}/detail`, `/agents`, `/report`), `/health` 외 전부 로그인 필요, **랭킹 점수는 아직 휴리스틱** | [`backend/`](backend/) |
-| PDF 리포트 (F-15) | ✅ 동작 (WeasyPrint) — Top-K 상권 + 실제 Claude 근거를 PDF 한 장으로. 웹 화면 연결 전 | `POST /report` |
-| LightGBM 예측 모델 | ⚠️ 학습 파이프라인 완성, **실제 다분기 데이터로 학습 전** (합성 데이터로 배관만 검증) | [`ml/`](ml/) |
+| DB 스키마 | ✅ Supabase에 수동 적용 (v1.2 service_role · v1.3 로그인 · v1.4 상권 좌표 패치 포함) | [`db/schema_v1.1.sql`](db/schema_v1.1.sql) |
+| 데이터 수집 (ETL) | ✅ 6개 서울시 API → Supabase 적재, 상권 좌표 보강(`district_geo.py`) | [`alley_compass_etl/`](alley_compass_etl/) |
+| 검증 Tool 6종 | ✅ LLM 미사용, 결정론적 | [`alley_compass_etl/verification_tools.py`](alley_compass_etl/verification_tools.py) |
+| Claude 에이전트 3종 | ✅ 추천 · 리스크 · 검증 (`claude-sonnet-5`) | [`alley_compass_etl/narrative_agents.py`](alley_compass_etl/narrative_agents.py) |
+| LightGBM 예측 모델 | ✅ 실데이터(18분기 · 10개 업종)로 학습, `/rank`에 연결됨 | [`ml/`](ml/), [`backend/models/`](backend/models/) |
+| FastAPI 백엔드 | ✅ 랭킹 · 조건 파싱 · 상세 진단 · 근거 생성 · PDF 리포트. `/health` 외 전부 로그인 필요, Claude 호출은 사용자별 시간당 한도 | [`backend/`](backend/) |
+| 웹 프론트 | ✅ 로그인 필수(이메일 · Google · 카카오), 추천 · 물어보기 · 리포트 · 기록 탭, 카카오맵 | [`web/`](web/) |
 
-**웹 화면의 숫자는 이제 전부 실제 데이터다** (`alley_compass_etl.py`로 수집한 만큼만).
-순위·상권 진단 4영역·시간대별 유동인구·분기별 매출/폐업률까지 백엔드가 계산해 내려준다.
-다만 생존 안정성 Score는 LightGBM이 아니라 임시 휴리스틱이고, 임차료와 지도는 데이터셋에
-아예 없어 빈칸으로 둔다 — 자세한 건 [`web/README.md`](web/README.md)의 "지금 진짜인 것 /
-아직 아닌 것" 표 참고.
+**모델 성능** (`v-20260924-2201`, Temporal Split 테스트 구간): ROC-AUC 0.795,
+Top-5% Lift 1.66배. 모델 파일이 없는 환경(로컬 개발 등)에서는 `/rank`가 원본
+feature 기반 휴리스틱 Score(`heuristic-v0`)로 조용히 대체하며, 응답의
+`model_version`에 어느 쪽이 쓰였는지 그대로 찍힌다.
 
-- **Claude 에이전트 3종**: `claude-sonnet-5`로 라이브 검증 완료 —
-  `python alley_compass_etl/pipeline.py` 실행 결과 추천 근거 3개·반대 근거
-  3개 전부 1차 생성에서 검증 통과(정정 0건). Opus 대신 Sonnet을 쓴 이유:
-  Fact를 문장으로 옮기는 작업이라 어려운 추론이 필요 없고, Verification
-  Agent가 어차피 수치를 재검증하는 안전망이 있어 비용(1/2.5)을 아꼈다.
-- **LightGBM**: `alley_compass_etl.py`로 아직 1개 분기(20251)만 받아둔 상태라
-  PRD §15의 Temporal Split(과거 학습 → 미래 검증)을 할 수 있는 다분기 데이터가
-  없다. `ml/train.py --synthetic`으로 배관(라벨링·분할·학습·평가지표)이 실제로
-  작동하는지는 확인했지만, 이건 합성 데이터라 실제 예측 성능이 아니다. 여러
-  분기를 실제로 수집한 뒤 `ml/train.py`로 다시 학습해야 진짜 모델이 나온다.
-- **FastAPI**: `/rank`는 지금 LightGBM 대신 원본 feature로 계산한 휴리스틱
-  Score(`model_version: "heuristic-v0"`)를 쓴다. 모델이 준비되면
-  `backend/scoring.py` 한 곳만 바꾸면 된다.
+**웹 화면에 아직 비어 있는 것** — 임차료·공실률(공개 데이터셋에 없음)은 "데이터 미보유"로
+표시한다. 예산 입력은 순위에 반영되지 않는다. 자세한 건 [`web/README.md`](web/README.md).
+
+---
+
+## 빠른 시작
+
+### 0. 준비 (한 번만)
+
+Python 3.11+ 와 Node.js(npm)가 필요하다. 가상환경은 **저장소 루트에 하나만** 만든다.
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r backend/requirements.txt -r alley_compass_etl/requirements.txt
+
+cp alley_compass_etl/.env.example alley_compass_etl/.env   # 값 채우기
+cp web/.env.example web/.env.local                          # 값 채우기
+npm --prefix web install
+```
+
+**macOS**는 LightGBM용 OpenMP 런타임이 별도로 필요하다: `brew install libomp`. 없으면 모델을
+못 불러와 `/rank`가 휴리스틱으로 조용히 대체된다(`GET /health`의 `model_version`이
+`heuristic-v0`). PDF 리포트를 쓰려면 `brew install pango`도 필요하다(`backend/README.md`).
+
+`alley_compass_etl/.env`(서버 전용)와 `web/.env.local`(공개 값만)에 무엇을 넣는지는
+각 `.env.example`에 주석으로 적혀 있다.
+
+### 1. 화면 띄우기
+
+```bash
+# 터미널 1 — 백엔드 (http://localhost:8000/docs)
+cd backend && uvicorn main:app --reload --port 8000
+
+# 터미널 2 — 웹 (http://localhost:5173)
+npm --prefix web run dev
+```
+
+백엔드는 기본으로 Supabase가 아니라 로컬 CSV를 읽는다. Supabase 데이터를 쓰려면
+`alley_compass_etl/.env`에 `BACKEND_USE_SUPABASE=true`를 추가한다.
+로그인이 필수라 Supabase Auth 설정(`web/README.md`의 "로그인")이 먼저 필요하다.
+
+### 2. 데이터 채우기 (필요할 때만)
+
+준비물: [서울 열린데이터광장](https://data.seoul.go.kr) 인증키, `db/schema_v1.1.sql`을 적용한 Supabase.
+
+```bash
+cd alley_compass_etl
+python alley_compass_etl.py --start-quarter 20251 --end-quarter 20251 \
+  --business-name "커피-음료" --no-upload        # 시험: 업로드 없이 로컬 CSV까지만
+python alley_compass_etl.py --start-quarter 20211 --end-quarter 20252 \
+  --business-name "커피-음료"                     # 실제 적재
+python district_geo.py --upload                   # 상권 좌표 · 구 · 면적 (지도용)
+```
+
+옵션 전체는 [`alley_compass_etl/README.md`](alley_compass_etl/README.md).
+새 모델을 학습해 올리는 순서는 [`ml/README.md`](ml/README.md), 배포(Render)는
+[`backend/README.md`](backend/README.md).
+
+### 3. 확인
+
+```bash
+npm --prefix web run build        # 타입 검사 + 빌드
+cd alley_compass_etl && python verification_tools.py    # 검증 Tool 데모
+```
+
+테스트 프레임워크·린터는 아직 없다.
 
 ---
 
@@ -59,84 +108,31 @@
 alley-compass/
 ├── README.md               이 파일
 ├── CLAUDE.md               Claude Code용 작업 가이드
+├── Dockerfile · render.yaml   백엔드 배포(Render, Docker)
 ├── docs/
 │   ├── PRD.md              제품 요구사항 정의서 v1.1 — 사양의 기준 문서
-│   └── prototype-v0.html   React 이식 전 원본 프로토타입 (디자인 레퍼런스)
-├── db/
-│   └── schema_v1.1.sql     Supabase/PostgreSQL 스키마 (테이블 11개 + RLS)
-│                             끝에 v1.2(service_role) · v1.3(로그인) 패치 섹션
-├── alley_compass_etl/      서울시 Open API → 전처리 → Supabase 적재 → Agent
+│   └── prototype-v0.html   React 이식 전 원본 프로토타입 (디자인 레퍼런스, 앱의 일부 아님)
+├── db/schema_v1.1.sql      Supabase 스키마 + RLS (끝에 v1.2 · v1.3 · v1.4 패치 섹션)
+├── alley_compass_etl/      서울시 API → 전처리 → Supabase 적재 · 검증 Tool · Agent
 │   ├── alley_compass_etl.py    ETL 파이프라인
+│   ├── district_geo.py         상권 좌표·구·면적 보강 (지도용)
 │   ├── verification_tools.py   검증 Tool 6종 (PRD §11)
-│   ├── fact_sheet.py            Feature → Agent에게 건넬 사실(Fact) 목록 생성
-│   ├── narrative_agents.py      Recommendation/Risk/Verification Agent (Claude)
-│   ├── pipeline.py               위 전체를 잇는 CLI (--dry-run 지원)
-│   └── README.md               ETL·Agent 사용법 · 의도적 NULL 설명
+│   ├── fact_sheet.py           Feature → Agent에게 건넬 사실(Fact) 목록
+│   ├── narrative_agents.py     Recommendation / Risk / Verification Agent
+│   ├── condition_parser.py     자연어 → 조건 (물어보기 탭)
+│   └── pipeline.py             위 전체를 잇는 CLI
 ├── backend/                FastAPI — 위 모듈들을 엔드포인트로 노출
-│   ├── main.py                  /rank, /districts/{code}/detail, /agents
-│   ├── auth.py                   Supabase 로그인 토큰(JWT) 검증
-│   ├── scoring.py                랭킹 로직 (현재 휴리스틱, LightGBM 대기)
-│   ├── detail.py                 상권 진단 4영역 + 시계열 집계
-│   ├── schemas.py                요청·응답 모델 (web/src/types/api.ts 와 1:1)
-│   ├── scripts/create_user.py    운영자용 계정 생성
-│   └── README.md
-├── ml/                     LightGBM 생존 안정성 모델 (PRD §14~§15)
-│   ├── labels.py                 Label 정의 (PRD §7.1)
-│   ├── features.py               Feature 목록
-│   ├── train.py                  Temporal Split 학습·평가 (--synthetic 배관 점검)
-│   └── README.md
-└── web/                    React 19 + TypeScript + Tailwind 4 프론트엔드
-    ├── src/Root.tsx        로그인 관문 · 공개 페이지(/privacy) 분기
-    ├── src/App.tsx         메인 화면 — 조건 state 소유 · API 호출 조립
-    ├── src/components/
-    │   ├── ui/             자체 디자인 시스템 (Radix 기반)
-    │   ├── auth/           로그인 · 가입 · 비밀번호 재설정 · 소셜 버튼 · 계정 메뉴
-    │   ├── detail/         상권 상세 드로어 (진단 · 점수 구성 · AI 근거)
-    │   ├── charts/         시계열 · 경쟁강도 차트
-    │   └── legal/          개인정보처리방침
-    ├── src/lib/            api.ts(백엔드 유일 접점) · supabase.ts · auth.tsx · 포맷
-    ├── src/types/          api.ts(backend/schemas.py 와 1:1) · 도메인 · UI 어휘
-    ├── src/styles/         디자인 토큰 3계층 (재료 → 역할 → Tailwind)
-    └── README.md           구조 · 로그인 · 토큰 추가 방법 · 접근성 규칙
+│   ├── main.py · schemas.py    라우트 · 요청/응답 모델 (web/src/types/api.ts 와 1:1)
+│   ├── auth.py                 Supabase 로그인 토큰(JWT) 검증
+│   ├── ratelimit.py            Claude 호출 사용자별 시간당 한도
+│   ├── scoring.py              랭킹 (LightGBM, 모델 없으면 휴리스틱)
+│   ├── detail.py               상권 진단 4영역 + 시계열
+│   ├── report.py               PDF 리포트 (WeasyPrint)
+│   ├── models/                 운영에 올린 LightGBM 아티팩트 (커밋 대상)
+│   └── scripts/create_user.py  운영자용 계정 생성
+├── ml/                     LightGBM 학습 (PRD §14~§15) — labels · features · train
+└── web/                    React 19 + TypeScript + Vite + Tailwind 4 (구조는 web/README.md)
 ```
-
----
-
-## 빠른 시작
-
-### 웹 화면 보기 (백엔드가 필요하다)
-
-```bash
-# 1) 백엔드 — 수집된 데이터가 있어야 한다
-cd backend && uvicorn main:app --reload --port 8000
-
-# 2) 웹
-cd web && npm install && npm run dev   # http://localhost:5173
-```
-
-조건을 바꾸면 서버가 서울 전체를 다시 랭킹하고, 상권 행을 누르면 진단 4영역과
-시계열이 담긴 상세 패널이 열린다. 추천·반대 근거는 Claude 호출이라 버튼을
-눌러야 생성된다(15~20초, 과금).
-
-### 데이터 파이프라인 돌리기 (API 키 필요)
-
-준비물: ① [서울 열린데이터광장](https://data.seoul.go.kr) 인증키 ② Supabase 프로젝트에
-`db/schema_v1.1.sql` 적용
-
-```bash
-cd alley_compass_etl
-python -m venv .venv && .venv/Scripts/activate   # Windows
-pip install -r requirements.txt
-cp .env.example .env                              # 키 3개 입력
-
-# 먼저 1분기 × 1업종으로, 업로드 없이 시험
-python alley_compass_etl.py --start-quarter 20251 --end-quarter 20251 \
-  --business-name "커피-음료" --no-upload
-
-python verification_tools.py                      # 검증 Tool 데모
-```
-
-자세한 옵션은 [`alley_compass_etl/README.md`](alley_compass_etl/README.md).
 
 ---
 
@@ -148,7 +144,7 @@ python verification_tools.py                      # 검증 Tool 데모
 모델이 계산한 값만 쓴다. `verification_tools.py`는 LLM을 호출하지 않는 순수 계산 코드이며
 앞으로도 그래야 한다.
 
-**2. 없는 데이터를 지어내지 않는다.** 5종 공개 데이터셋에 상권 면적이 없으므로 면적
+**2. 없는 데이터를 지어내지 않는다.** 공개 데이터셋에 상권 면적이 없으므로 면적
 기반 밀도(`competition_density`)는 NULL로 둔다. 대신 면적이 필요 없는 **점포당 배후수요**
 `= (유동+상주+직장) / 점포수`로 경쟁강도를 잰다. 보증금·임대료도 미보유라 예산 검증은
 "산술이 맞는가"까지만 하고 `verified_by_data=False`를 남긴다. 화면에서도 비용 영역은
@@ -160,13 +156,17 @@ python verification_tools.py                      # 검증 Tool 데모
 **4. 절대 점수보다 분포 내 위치.** "몇 점"보다 "서울 골목상권 중 상위 몇 %"가 의사결정에
 쓸모 있다. 백분위 정의는 Python 검증 Tool과 웹이 동일하다.
 
+**5. 프론트는 숫자를 계산하지 않는다.** 점수·백분위·진단은 전부 백엔드가 내려준 값이라
+화면과 검증 Tool이 어긋나지 않는다.
+
 ---
 
 ## 데이터 출처
 
 서울시 「우리마을가게 상권분석서비스」 (제공: 서울신용보증재단 · 서울 열린데이터광장),
-공공누리 제1유형. 6개 API를 사용한다 — 길단위인구 · 점포 · 추정매출 · 집객시설 ·
-직장인구 · 상주인구. (PRD는 뒤 둘을 "배후 인구" 하나로 묶지만 실제 API는 2개다.)
+공공누리 제1유형. 7개 API를 사용한다 — 길단위인구 · 점포 · 추정매출 · 집객시설 ·
+직장인구 · 상주인구, 그리고 지도용 영역-상권(좌표·면적). (PRD는 직장·상주인구를 "배후 인구"
+하나로 묶지만 실제 API는 2개다.)
 
 2026-07-03 서울시 제공 기준 변경을 반영해 **2021년 이후 데이터만** 사용한다.
 

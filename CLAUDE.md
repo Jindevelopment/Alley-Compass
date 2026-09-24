@@ -11,16 +11,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 현재 있는 것은 PRD + DB 스키마 + ETL 파이프라인 + 검증 Tool 6종 + Agent 체인
 (Recommendation / Risk / Verification, `alley_compass_etl/narrative_agents.py`) +
 FastAPI 백엔드(`backend/`) + LightGBM 학습 파이프라인(`ml/`) + React 프론트
-(`web/`, 백엔드 실데이터 연결 · Supabase Auth 로그인 필수)다.
+(`web/`, 백엔드 실데이터 연결 · Supabase Auth 로그인 필수 · 카카오맵)다.
 
 - Agent 체인은 `claude-sonnet-5`로 라이브 검증까지 됐다. 다만 표본이 상권 1곳이라
   재작성률·폐기율 측정이 남았다.
-- `backend/`는 동작하지만 `/rank`는 아직 LightGBM이 아니라 `backend/scoring.py`의
-  휴리스틱 Score(`model_version: "heuristic-v0"`)를 쓴다.
-- `ml/train.py`는 Label 정의·Temporal Split·평가지표까지 구현·`--synthetic`으로
-  배관 검증했지만, 실제 학습에 쓸 다분기 `district_features`가 아직 없다
-  (현재 1개 분기만 수집됨). 모델이 준비되면 `backend/scoring.py`의
-  `stability_score` 계산 부분만 교체하면 된다.
+- `/rank`는 `backend/models/`에 승격해 둔 LightGBM 모델(실데이터 18분기 · 10개 업종으로
+  학습, 테스트 ROC-AUC 0.795)로 점수를 낸다. 모델 파일이 없거나 로드에 실패하면
+  `backend/scoring.py`의 휴리스틱(`heuristic-v0`)으로 조용히 대체하므로, 배포 후
+  `GET /health`의 `model_version`이 `lightgbm-…`인지 확인한다. 새 모델 승격 절차는
+  `ml/README.md`.
+- 예산은 순위에 반영되지 않는다(상권별 임차료 데이터가 없다). 화면에도 그렇게 표시한다.
 
 새 컴포넌트를 만들 때는 `docs/PRD.md`가 사양의 기준 문서다 (§9~§11 Agent/Tool,
 §14~§15 모델·Temporal Split, §19 기술 스택).
@@ -29,13 +29,16 @@ FastAPI 백엔드(`backend/`) + LightGBM 학습 파이프라인(`ml/`) + React �
 
 ## 명령어
 
-모든 Python 명령은 `alley_compass_etl/`에서 실행한다 (`--data-dir` 기본값이 cwd 기준
+가상환경은 저장소 루트의 `.venv` 하나를 백엔드·ETL·ML이 같이 쓴다.
+ETL 명령은 `alley_compass_etl/`에서 실행한다 (`--data-dir` 기본값이 cwd 기준
 `data/`이고, `verification_tools`가 `alley_compass_etl` 모듈을 import한다).
 
 ```bash
-python -m venv .venv && .venv/Scripts/activate   # Windows
-pip install -r requirements.txt
-cp .env.example .env    # SEOUL_API_KEY / SUPABASE_URL / SUPABASE_SECRET_KEY
+# 저장소 루트에서 처음 한 번
+python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r backend/requirements.txt -r alley_compass_etl/requirements.txt
+cp alley_compass_etl/.env.example alley_compass_etl/.env   # 키 채우기
+cd alley_compass_etl
 
 # 스모크 테스트: 1분기 × 1업종, 업로드 없이 로컬 CSV까지만
 python alley_compass_etl.py --start-quarter 20251 --end-quarter 20251 \
@@ -51,7 +54,12 @@ python alley_compass_etl.py ... --refresh     # RAW CSV 캐시 무시하고 재�
 python verification_tools.py
 python verification_tools.py --district-code 3120014 --business-code CS100010
 python verification_tools.py --supabase       # 로컬 CSV 대신 Supabase에서 로드
+
+python district_geo.py --upload               # 상권 좌표·구·면적 (지도용, v1.4 패치 선행)
 ```
+
+백엔드(`cd backend && uvicorn main:app --reload --port 8000`)와 모델 학습
+(`cd ml && python train.py ...`, `ml/README.md`)은 각 README를 본다.
 
 웹 프론트는 `web/`에 있다 (React 19 + TypeScript + Vite + Tailwind 4 + Radix).
 backend가 :8000에 떠 있어야 화면이 동작한다.
@@ -66,8 +74,9 @@ npm --prefix web run typecheck  # 타입만 검사
 `docs/prototype-v0.html`은 React로 이식되기 전의 원본 프로토타입이다. 디자인 레퍼런스로
 남겨둔 것이며 앱의 일부가 아니다 — 화면을 고칠 때는 `web/` 쪽만 수정한다.
 
-테스트 프레임워크·린터 설정은 없다. 현재 회귀 확인 수단은 두 Python CLI의 데모 실행,
-ETL이 출력하는 DATA QUALITY REPORT, `npm --prefix web run build`(타입 검사 포함)다.
+테스트 프레임워크·린터 설정은 없다. 현재 회귀 확인 수단은 Python CLI 데모 실행,
+ETL이 출력하는 DATA QUALITY REPORT, `npm --prefix web run build`(타입 검사 포함),
+백엔드는 `cd backend && python -c "import main"`(import 오류 확인)이다.
 백엔드 집계를 고쳤다면 합성 프레임을 만들어 `build_detail()`을 직접 호출해보는 편이 빠르다 —
 분기 1개·컬럼 결측·`store_count=0` 같은 경계를 실데이터 없이 훑을 수 있다.
 
@@ -112,7 +121,7 @@ Agent 체인을 붙일 때 이 두 함수가 접합점이다.
 predictions`는 anon 읽기 공개, 개인 세션 계열 5개 테이블(`search_sessions` 이하)은 anon
 revoke + FastAPI가 service_role로 대행. 로그인 사용자(`authenticated`)는 본인 기록
 select만 가능하다 — 쓰기 정책은 v1.3 패치에서 제거했다(FastAPI 우회 방지).
-v1.3은 `profiles`(가입 트리거 `handle_new_user`)도 추가한다. 패치는 파일 끝에
+v1.3은 `profiles`(가입 트리거 `handle_new_user`)를, v1.4는 상권 좌표용 `area_m2`를 추가한다. 패치는 파일 끝에
 섹션으로 붙이고, 그 섹션만 따로 실행해도 되게 멱등하게 쓴다.
 
 `backend/auth.py` — Supabase JWT 검증(`require_user`). 신형 프로젝트는 JWKS(ES256/RS256),
@@ -123,6 +132,11 @@ v1.3은 `profiles`(가입 트리거 `handle_new_user`)도 추가한다. 패치�
 Claude를 부르지 않으므로 과금이 없다. 백분위는 `verification_tools.percentile()`을 그대로
 쓴다 — 화면의 "상위 N%"와 검증 Tool의 판정이 어긋나면 안 되기 때문이다. 평면 컬럼(로컬
 디버그 CSV)과 `extra_features` JSONB(Supabase) 양쪽에서 값을 읽는다.
+
+`backend/scoring.py` — `/rank`의 점수 계산. `backend/models/`의 최신 `.joblib`(LightGBM)을
+한 번 불러와 쓰고, 없으면 휴리스틱으로 대체한다. `breakdown` 5축은 어느 쪽이든 휴리스틱
+값을 그대로 보여준다(설명용). `backend/models/`만 커밋·Docker 이미지 대상이고
+`ml/models/*.joblib`은 gitignore다. 피처 목록은 아티팩트 안에 들어 있어 `ml/`을 import하지 않는다.
 
 `backend/ratelimit.py` — `/parse-condition`·`/agents`·`/report`(전부 Claude 호출)에
 사용자별 1시간 크레딧 한도를 건다. 로그인만으로는 반복 호출을 못 막아서인데,
@@ -165,13 +179,14 @@ Supabase에 올려도 이 시간 전엔 화면에 안 보인다 — 즉시 반�
 - **없는 데이터를 만들어내지 않는다.** 5종 데이터셋에 상권 면적이 없으므로
   `competition_density`(면적 기반 밀도) 컬럼은 NULL로 둔다. 경쟁강도는 면적이 필요 없는
   **점포당 배후수요** `= (유동+상주+직장) / store_count`로 계산한다 — 클수록 경쟁 여유이며,
-  점포수 비율과 방향이 반대다. 이 정의는 세 곳이 공유하므로 한쪽만 바꾸면 안 된다:
+  점포수 비율과 방향이 반대다. 이 정의는 네 곳이 공유하므로 한쪽만 바꾸면 안 된다:
   ETL의 `extra_features.demand_per_store`, `verification_tools.competition_density()`,
   `backend/scoring.py`의 `_competition_score()`, `backend/detail.py`의 `_competition_frame()`.
   보증금/임대료는 여전히 미보유라 `budget_validator`는 `verified_by_data=False`를 반환하고,
   화면의 비용 진단 영역도 항상 `available=false`다.
-  `districts.gu_name / latitude / longitude`도 같은 이유로 NULL이다 — 지도 기능은
-  "영역-상권" 데이터나 별도 geocoding 단계가 선행되어야 한다.
+  `districts.gu_name / latitude / longitude / area_m2`는 `alley_compass_etl.py`가 아니라
+  `district_geo.py`("영역-상권" API)가 채운다. 안 채워진 상권은 지도에서 그냥 빠지며
+  좌표를 지어내지 않는다.
 - 데이터 부족을 추정으로 메우지 않는다. `trend()`는 분기가 모자라면
   `available=False`와 이유를 반환하고, QoQ 성장률은 직전 행이 실제 직전 분기일 때만 계산한다.
 - 2026-07-03 서울시 제공 기준 변경 때문에 `MIN_SUPPORTED_QUARTER = 20211` 미만은 거부한다.
