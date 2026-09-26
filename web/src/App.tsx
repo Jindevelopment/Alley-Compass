@@ -469,9 +469,10 @@ export default function App() {
   return (
     <>
       <div className="flex min-h-screen flex-col bg-bg">
+        <a href="#main-content" className="sr-only fixed left-4 top-4 z-50 rounded-lg bg-accent px-5 py-3 text-accent-fg focus:not-sr-only">본문으로 바로가기</a>
         <AppHeader tab={tab} onTab={setTab} showTabs={tabsVisible} />
 
-        <main className="mx-auto w-full max-w-[92rem] flex-1 px-4 py-6 sm:px-6 md:pb-10">
+        <main id="main-content" className="mx-auto w-full max-w-[80rem] flex-1 px-4 py-8 sm:px-8 sm:py-10 md:pb-12">
           {error ? (
             <Card variant="nodata" className="mx-auto max-w-xl">
               <CardBody className="flex flex-col items-start gap-4 p-6">
@@ -499,6 +500,7 @@ export default function App() {
             // 추천·물어보기·리포트는 전부 첫 조건이 있어야 의미가 생긴다 — 어느
             // 탭을 눌렀든 조건부터 받는 이 화면으로 모은다.
             <OnboardingChat
+              bizOptions={bizOptions}
               messages={messages}
               onParse={handleParse}
               busy={loading}

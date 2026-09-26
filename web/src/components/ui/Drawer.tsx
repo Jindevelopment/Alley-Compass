@@ -38,14 +38,14 @@ export function Drawer({ open, onOpenChange, title, header, children, className 
 
         <Dialog.Content
           className={cn(
-            "fixed inset-y-0 right-0 z-50 flex w-full max-w-[min(46rem,100vw)] flex-col",
-            "border-l border-border bg-surface shadow-lg",
+            "fixed inset-x-0 top-0 z-50 flex h-dvh w-full max-w-[min(46rem,100vw)] flex-col sm:left-auto",
+            "border-l border-border bg-surface pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] shadow-lg sm:pl-0",
             "data-[state=open]:animate-[drawer-in_0.26s_var(--ease-out-quart)]",
             "focus:outline-none",
             className,
           )}
         >
-          <div className="flex items-center gap-3 border-b border-border px-5 py-3">
+          <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-5">
             <div className="min-w-0 flex-1">
               {header ?? <Dialog.Title className="text-lg font-semibold text-fg">{title}</Dialog.Title>}
             </div>
@@ -62,7 +62,7 @@ export function Drawer({ open, onOpenChange, title, header, children, className 
             </Dialog.Close>
           </div>
 
-          <div className="scroll-slim min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="scroll-slim min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">
             {children}
           </div>
         </Dialog.Content>

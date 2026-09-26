@@ -30,6 +30,7 @@ declare namespace kakao.maps {
   class Map {
     constructor(container: HTMLElement, options: { center: LatLng; level: number });
     setBounds(bounds: LatLngBounds): void;
+    relayout(): void;
   }
   class Circle {
     constructor(options: {

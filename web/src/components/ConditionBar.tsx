@@ -56,11 +56,11 @@ export function ConditionBar({ conditions, bizOptions, busy, onChange, onReset }
   return (
     <section
       aria-label="탐색 조건"
-      className="rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-5"
+      className="rounded-2xl border border-border-subtle bg-surface p-5 shadow-xs sm:p-6"
     >
       <div className="flex items-center justify-between gap-3 sm:mb-3">
         <div className="min-w-0">
-          <h2 className="text-md font-semibold text-fg">내 조건</h2>
+          <h2 className="text-lg font-semibold text-fg">내 가게의 조건</h2>
           <p className="hidden text-xs text-fg-muted sm:block">바꾸면 순위가 바로 다시 계산돼요.</p>
         </div>
         <Button variant="quiet" size="sm" onClick={onReset} disabled={busy} className="hidden sm:inline-flex">
@@ -88,7 +88,7 @@ export function ConditionBar({ conditions, bizOptions, busy, onChange, onReset }
         id="condition-fields"
         className={`mt-3 gap-3 sm:mt-0 sm:grid sm:grid-cols-2 xl:grid-cols-5 ${open ? "grid" : "hidden"}`}
       >
-        <Field>
+        <Field disabled={busy}>
           <FieldLabel>업종</FieldLabel>
           <Select
             options={bizOptions}
@@ -97,7 +97,7 @@ export function ConditionBar({ conditions, bizOptions, busy, onChange, onReset }
           />
         </Field>
 
-        <Field>
+        <Field disabled={busy}>
           {/* 순위 계산에는 아직 안 쓰인다(ResultSummary의 안내 배너와 같은 이유 —
            * scoring.py에 임차료 데이터가 없다). 값을 바꾸는 그 자리에서 바로
            * 알아야 "왜 순위가 그대로지?"라는 오해가 안 생긴다. */}
@@ -109,7 +109,7 @@ export function ConditionBar({ conditions, bizOptions, busy, onChange, onReset }
           />
         </Field>
 
-        <Field>
+        <Field disabled={busy}>
           <FieldLabel>타깃 연령</FieldLabel>
           <Select
             options={AGE_OPTIONS}
@@ -118,7 +118,7 @@ export function ConditionBar({ conditions, bizOptions, busy, onChange, onReset }
           />
         </Field>
 
-        <Field>
+        <Field disabled={busy}>
           <FieldLabel>상권 성격</FieldLabel>
           <Select
             options={CHARACTER_OPTIONS}
@@ -127,7 +127,7 @@ export function ConditionBar({ conditions, bizOptions, busy, onChange, onReset }
           />
         </Field>
 
-        <Field>
+        <Field disabled={busy}>
           <FieldLabel>가장 중요한 것</FieldLabel>
           <Select
             options={PRIORITY_OPTIONS}

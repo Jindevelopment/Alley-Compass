@@ -1,12 +1,53 @@
 # 골목 컴퍼스 ETL
 
+서울시 공개 데이터(API 6종)를 내려받아 **상권 × 업종 × 분기** 표 하나로 합치고 Supabase에
+올리는 파이프라인이다. 이 폴더에는 그 표를 바탕으로 동작하는 **검증 Tool**(§8)과
+**Claude 근거 생성 에이전트**(§9), 자연어 조건 파서(`condition_parser.py`)도 함께 있다.
+처음이면 §1~§3만 따라 해도 데이터가 채워진다.
+
+## 0. 전처리 파이프라인 한눈에 보기
+
+```
+서울 열린데이터광장 API 6종 (점포·매출·유동인구·직장인구·상주인구·시설)
+   ↓ download_raw_data()      raw CSV 캐시 (이미 받았으면 재사용, --refresh로 강제 갱신)
+   ↓ prep_*()                 컬럼명 정리 · 숫자 변환 · 결측 키 제거 · 중복 제거
+   ↓ build_feature_table()    stores LEFT JOIN sales, 그 위에 상권 단위 데이터 결합
+   ↓                          파생값 계산 (QoQ 성장률 · transit_score · demand_per_store)
+상권 × 업종 × 분기 feature table  (data/processed/district_features_debug.csv)
+   ↓ upload_features()        upsert (재실행해도 행이 중복되지 않음)
+Supabase: districts / business_types / district_features
+```
+
+핵심만 짚으면:
+
+- **기준은 점포 데이터다.** 카드매출 데이터가 없는 상권·분기도 버리지 않으려고
+  `stores LEFT JOIN sales`로 합친다 — 그래서 `estimated_sales`가 꽤 자주 비어 있다
+  (실측으로 약 43%, 의도된 결측이다).
+- **없는 데이터는 만들지 않는다.** 상권 면적이 없어서 `competition_density`(면적
+  기반 밀도)는 항상 NULL — 대신 면적이 필요 없는 `demand_per_store`(점포당
+  배후수요)를 따로 계산한다 (자세한 내용은 아래 "현재 스키마와 관련된 의도적 NULL").
+- **성장률은 진짜 "직전 분기"일 때만 계산한다.** 분기가 중간에 비면 QoQ 성장률을
+  억지로 추정하지 않고 비워 둔다.
+- **표준 컬럼 외의 값은 전부 `extra_features` JSONB 하나로 몰아넣는다.** 새 원천
+  컬럼이 생겨도 스키마를 안 바꾸는 게 기본이다.
+- **업로드는 전부 upsert다.** 같은 명령을 여러 번 돌려도 데이터가 중복되지 않는다
+  (고유키: 상권+업종+분기).
+
+이 파이프라인이 실제로 의도대로 동작했는지는 결과 데이터를 직접 검산해 확인할 수
+있다 — 결측치 비율·분포·상관관계 같은 검증은 `../DB_EDA/README.md`에 정리돼 있다.
+
 ## 1. 설치
 
+가상환경은 저장소 루트의 `.venv` 하나를 백엔드와 같이 쓴다(루트 `README.md`의 "빠른 시작").
+아래 명령은 전부 `alley_compass_etl/`에서 실행한다.
+
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
+# 저장소 루트에서 처음 한 번
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r backend/requirements.txt -r alley_compass_etl/requirements.txt
+cp alley_compass_etl/.env.example alley_compass_etl/.env
+
+cd alley_compass_etl
 ```
 
 `.env`에 다음 3개를 입력합니다.

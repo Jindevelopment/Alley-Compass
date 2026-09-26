@@ -17,7 +17,7 @@ export function AccountMenu() {
   return (
     <div className="flex items-center gap-2">
       <Tooltip content={user.email ?? name}>
-        <span className="flex items-center gap-2">
+        <span className="hidden items-center gap-2 xl:flex">
           {avatar ? (
             <img
               src={avatar}
@@ -43,12 +43,11 @@ export function AccountMenu() {
 
       <Button
         variant="ghost"
-        size="sm"
+        size="icon"
         onClick={() => void signOut()}
         aria-label="로그아웃"
       >
         <LogOut aria-hidden="true" className="size-3.5" />
-        <span className="hidden sm:inline">로그아웃</span>
       </Button>
     </div>
   );

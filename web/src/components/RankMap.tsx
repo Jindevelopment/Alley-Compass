@@ -75,6 +75,24 @@ export function RankMap({ ranking, selectedCode, onSelect }: RankMapProps) {
   // 이 조건에서는 그 이유를 그대로 설명하는 안내로 바꾼다.
   const noGeoData = ranking.length > 0 && withGeo.length === 0;
 
+  // 목록/지도 전환과 창 크기 변경 후 보이는 영역에 맞춰 다시 배치한다.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || status !== "ready") return;
+    const observer = new ResizeObserver(() => {
+      const map = mapRef.current;
+      if (!map || !container.clientWidth || !container.clientHeight) return;
+      map.relayout();
+      if (withGeo.length) {
+        const bounds = new window.kakao.maps.LatLngBounds();
+        withGeo.forEach((r) => bounds.extend(new window.kakao.maps.LatLng(r.latitude, r.longitude)));
+        map.setBounds(bounds);
+      }
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [status, withGeo]);
+
   // SDK 로드 + 지도 인스턴스 생성. 한 번만 한다.
   useEffect(() => {
     let cancelled = false;
@@ -204,7 +222,7 @@ export function RankMap({ ranking, selectedCode, onSelect }: RankMapProps) {
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6">
           <p className="pointer-events-auto flex max-w-xs flex-col items-center gap-2 rounded-2xl bg-surface/95 px-5 py-4 text-center text-sm leading-relaxed text-fg-body shadow-md backdrop-blur">
             <MapPinOff aria-hidden="true" className="size-5 text-fg-muted" />
-            이번 결과에는 아직 지도 좌표가 등록된 상권이 없어요. 왼쪽 목록에서 확인해 주세요.
+            이번 결과에는 아직 지도 좌표가 등록된 상권이 없어요. 추천 목록에서 확인해 주세요.
           </p>
         </div>
       ) : null}

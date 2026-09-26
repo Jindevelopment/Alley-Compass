@@ -128,8 +128,8 @@ export function ReportTab({ conditions, meta, bizLabel, onGoRecommend, onError }
         <dl className="mt-1.5">
           {rows.map(([label, value]) => (
             <div key={label} className="flex items-baseline gap-3 border-t border-border-subtle py-3">
-              <dt className="w-28 shrink-0 text-sm text-fg-muted">{label}</dt>
-              <dd className="flex-1 text-md font-semibold text-fg">{value}</dd>
+              <dt className="w-24 shrink-0 text-sm text-fg-muted sm:w-28">{label}</dt>
+              <dd className="min-w-0 flex-1 text-md font-semibold text-fg">{value}</dd>
             </div>
           ))}
         </dl>
@@ -156,7 +156,7 @@ export function ReportTab({ conditions, meta, bizLabel, onGoRecommend, onError }
         <Button
           variant="solid"
           size="lg"
-          className="mt-5 w-full"
+          className="mt-5 h-auto min-h-14 w-full whitespace-normal py-3"
           disabled={working}
           onClick={make}
         >

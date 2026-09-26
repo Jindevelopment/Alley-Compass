@@ -3,18 +3,25 @@
 `backend/` FastAPI 를 호출해 상권 랭킹·진단·근거를 보여주는 화면이다.
 
 ```bash
-# 1) 백엔드 먼저 (다른 터미널)
+# 1) 백엔드 먼저 (다른 터미널). 저장소 루트에서 `source .venv/bin/activate`로 가상환경을 켠 뒤
 cd ../backend && uvicorn main:app --reload --port 8000
 
-# 2) 웹
+# 2) 웹 — web/ 에서
+cp .env.example .env.local   # 처음 한 번, 값 채우기
 npm install
 npm run dev        # http://localhost:5173
 npm run build      # tsc -b && vite build
 npm run typecheck  # 타입만 검사
 ```
 
-기본으로 `http://localhost:8000` 의 백엔드를 본다. 다른 주소를 쓰려면
-`.env.example` 을 `.env.local` 로 복사해 `VITE_API_BASE_URL` 을 바꾼다.
+`.env.local` 에 넣는 값 (전부 공개돼도 되는 것만):
+
+| 변수 | 용도 |
+|---|---|
+| `VITE_API_BASE_URL` | 백엔드 주소. 비우면 `http://localhost:8000` |
+| `VITE_SUPABASE_URL` · `VITE_SUPABASE_ANON_KEY` | 로그인(Supabase Auth). 예시값이 남아 있으면 로그인 화면에 설정 안내가 뜬다 |
+| `VITE_AUTH_PROVIDERS` | 실제로 켠 소셜 로그인만. 예: `google,kakao` |
+| `VITE_KAKAO_MAP_APPKEY` | 카카오맵 JavaScript 키(선택). 비우면 지도 카드에 안내만 뜬다 |
 
 ---
 
@@ -27,6 +34,7 @@ FastAPI 를 거쳐야 하므로, 무료 조회까지 전부 한 경로로 모았
 
 | 화면 | 엔드포인트 | 과금 | 언제 부르나 |
 |---|---|---|---|
+| (서버 깨우기) | `GET /health` | 없음 | 앱을 여는 순간 한 번 — 로그인 화면을 보는 동안 잠든 백엔드(Render 무료 플랜)를 미리 깨운다. 인증이 필요 없고 실패해도 화면에 영향이 없다 (`warmUpBackend()`) |
 | 업종 드롭다운 | `GET /business-types` | 없음 | 최초 1회 |
 | 순위 목록 · 점수 구성 | `POST /rank` | 없음 | 조건 변경 시 (예산은 500ms 디바운스) |
 | 상권 진단 4영역 · 시계열 | `GET /districts/{code}/detail` | 없음 | 상세를 열 때 |

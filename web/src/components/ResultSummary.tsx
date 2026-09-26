@@ -19,7 +19,7 @@ export function ResultSummary({ meta, loading, shown }: ResultSummaryProps) {
   return (
     <div>
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <h1 className="font-display text-2xl font-bold tracking-[-0.02em] text-fg">
+        <h1 className="font-display text-2xl font-bold tracking-[-0.035em] text-fg sm:text-3xl">
           {meta ? meta.business_name : "조건에 맞는"} 추천 상권{" "}
           {meta ? <span className="text-highlight-text">{shown}곳</span> : null}
         </h1>
@@ -45,7 +45,7 @@ export function ResultSummary({ meta, loading, shown }: ResultSummaryProps) {
         )}
       </p>
 
-      <div className="mt-3 flex items-start gap-2.5 rounded-lg bg-caution-subtle px-3.5 py-3 text-caution-text">
+      <div className="mt-4 flex items-start gap-2.5 rounded-lg bg-caution-subtle px-4 py-3 text-caution-text">
         <Info aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
         <p className="text-sm font-medium leading-relaxed">
           보증금 예산은 아직 순위에 반영되지 않아요. 임차료 자료가 준비되면 반영할게요.

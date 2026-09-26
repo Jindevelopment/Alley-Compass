@@ -103,7 +103,7 @@ export function DistrictDrawer({
             {r.rank}
           </span>
           <div className="min-w-0">
-            <DrawerTitle className="truncate text-lg font-semibold text-fg">
+            <DrawerTitle className="text-lg font-semibold text-fg">
               {r.district_name}
             </DrawerTitle>
             <p className="text-sm text-fg-muted">
@@ -113,7 +113,7 @@ export function DistrictDrawer({
         </div>
       }
     >
-      <div className="flex flex-col gap-6 px-5 py-5">
+      <div className="flex flex-col gap-6 px-4 py-5 sm:px-5">
         {/* 결론 — 점수 */}
         <section className="relative overflow-hidden rounded-2xl bg-[linear-gradient(120deg,var(--brand-abyss)_0%,var(--brand-deep)_70%,var(--brand-glow)_100%)] p-5 text-brand-fg sm:p-6">
           <CompassArt className="absolute -right-16 -top-20 w-64 opacity-90" />

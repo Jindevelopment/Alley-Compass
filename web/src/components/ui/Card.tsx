@@ -18,10 +18,10 @@ import { cn } from "@/lib/cn";
  *             숫자를 지어내지 않는다는 설계 원칙이 화면에 드러나는 자리다
  * ────────────────────────────────────────────────────────────── */
 
-const card = cva("min-w-0 rounded-xl", {
+const card = cva("min-w-0 rounded-2xl", {
   variants: {
     variant: {
-      outline: "bg-surface border border-border shadow-xs",
+      outline: "bg-surface border border-border-subtle shadow-xs",
       raised: "bg-surface-raised border border-border shadow-sm",
       sunken: "bg-surface-sunken border border-border-subtle",
       nodata: "bg-nodata-subtle border border-dashed border-nodata-border",

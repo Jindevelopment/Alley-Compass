@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -217,6 +218,99 @@ def load_feature_frame(
     return _load_from_csv(csv_path or DEFAULT_CSV)
 
 
+_BUSINESS_PAGE_SIZE = 1000  # Supabase(PostgREST)가 한 번에 돌려주는 행 상한
+
+
+def _load_business_from_supabase(business_code: str) -> pd.DataFrame:
+    """한 업종의 "전체 최근 분기" 행만 Supabase에서 가져온다.
+
+    latest_only=True 경로(select_all)는 테이블 전체 id를 1,000개씩 226구간으로
+    쪼개 요청하는데, 최신 분기 행은 구간마다 55개쯤 흩어져 있어 행 12,499개를
+    얻자고 요청을 226번 보냈다(실측 약 25초). 업종 하나(카페 1,523행)는
+    필터를 건 단순 조회로 2번이면 끝난다(실측 1.7초).
+
+    기준 분기는 업종별 최근 분기가 아니라 **테이블 전체의 최근 분기**다 —
+    예전 전체 적재(latest_only=True)와 같은 기준이라야 업종끼리 기준 시점이 어긋나지 않고
+    결과도 그대로 유지된다. 업종이 없거나 그 분기에 행이 없으면 빈
+    DataFrame을 돌려준다(404 여부는 호출자가 판단한다).
+    """
+    load_dotenv()
+    supabase = get_supabase_client()
+
+    latest_date = _latest_reference_date_value(supabase)
+    if latest_date is None:
+        raise ToolError(
+            "Supabase district_features 테이블이 비어 있습니다. "
+            "아직 데이터를 업로드하지 않았다면 --csv 옵션으로 로컬 "
+            "district_features_debug.csv 를 쓰세요."
+        )
+
+    business = (
+        supabase.table("business_types")
+        .select("id")
+        .eq("business_code", str(business_code))
+        .limit(1)
+        .execute()
+    ).data
+    if not business:
+        return pd.DataFrame()
+    business_id = business[0]["id"]
+
+    rows: list[dict[str, Any]] = []
+    last_id = 0
+    while True:
+        page = _fetch_business_page(supabase, business_id, latest_date, last_id)
+        rows.extend(page)
+        if len(page) < _BUSINESS_PAGE_SIZE:
+            break
+        last_id = page[-1]["id"]
+
+    if not rows:
+        return pd.DataFrame()
+    return _merge_masters(supabase, pd.DataFrame(rows))
+
+
+def _fetch_business_page(
+    supabase: Client, business_id: Any, reference_date: str, after_id: int, retries: int = 4
+) -> list[dict[str, Any]]:
+    """id 순서로 이어 읽는 한 페이지. 일시적 오류(타임아웃 등)는 잠깐 쉬고 재시도한다."""
+    for attempt in range(retries):
+        try:
+            return (
+                supabase.table("district_features")
+                .select("*")
+                .eq("business_type_id", business_id)
+                .eq("reference_date", reference_date)
+                .gt("id", after_id)
+                .order("id")
+                .limit(_BUSINESS_PAGE_SIZE)
+                .execute()
+            ).data or []
+        except Exception:  # noqa: BLE001 — 마지막 시도면 그대로 올린다
+            if attempt == retries - 1:
+                raise
+            time.sleep(1.0 * (attempt + 1))
+    return []  # 도달하지 않음
+
+
+def load_business_frame(
+    business_code: str,
+    csv_path: Path | None = None,
+    use_supabase: bool = False,
+) -> pd.DataFrame:
+    """한 업종의 "전체 최근 분기" 상권 행만 반환한다. backend의 /rank·/detail·
+    /agents·/report가 쓴다 — 이 화면들의 계산(랭킹·백분위·경쟁강도 비교 모집단)은
+    전부 같은 업종 안에서만 이뤄지므로 다른 업종 행이 필요 없다.
+
+    Supabase 경로는 그 업종 행만 조회한다. CSV(로컬 개발용)는 이미 작아서
+    전체를 읽어 업종으로 거른다. 결과가 없으면 빈 DataFrame이다.
+    """
+    if use_supabase:
+        return _load_business_from_supabase(business_code)
+    df = _load_from_csv(csv_path or DEFAULT_CSV)
+    return df[df["business_code"] == str(business_code)].reset_index(drop=True)
+
+
 def load_district_history(
     district_code: str,
     business_code: str,
@@ -225,7 +319,7 @@ def load_district_history(
 ) -> pd.DataFrame:
     """한 상권×업종의 전체 분기 이력만 가져온다. /detail의 추이 차트 전용.
 
-    get_frame()의 캐시(latest_only=True)에는 과거 분기가 없으므로, 상세
+    backend의 업종별 캐시(load_business_frame)에는 과거 분기가 없으므로, 상세
     화면을 열 때마다 이 함수로 그 상권×업종 하나만 작게(현재 최대 18행)
     따로 조회한다 — 전체 테이블을 메모리에 올리지 않고도 추이를 보여줄
     수 있다.

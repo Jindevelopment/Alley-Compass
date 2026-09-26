@@ -1,10 +1,11 @@
-import { lazy, Suspense, type ComponentType } from "react";
+import { lazy, Suspense, useEffect, type ComponentType } from "react";
 
 import { SignInScreen } from "./components/auth/SignInScreen";
 import { LoadingScreen } from "./components/LoadingScreen";
 import { UpdatePasswordScreen } from "./components/auth/UpdatePasswordScreen";
 import { PrivacyPage } from "./components/legal/PrivacyPage";
 import { TooltipProvider } from "./components/ui";
+import { warmUpBackend } from "./lib/api";
 import { AuthProvider, useAuth } from "./lib/auth";
 
 /* ──────────────────────────────────────────────────────────────
@@ -36,6 +37,12 @@ const PUBLIC_PAGES: Record<string, ComponentType> = {
 
 function Gate() {
   const { status } = useAuth();
+
+  /* 로그인하는 동안 잠든 백엔드를 미리 깨운다(lib/api.ts warmUpBackend). 공개 페이지
+   * (/privacy)는 백엔드가 필요 없어 이 컴포넌트에 오지 않는다. */
+  useEffect(() => {
+    warmUpBackend();
+  }, []);
 
   if (status === "loading") return <LoadingScreen stage={0} />;
   if (status === "recovery") return <UpdatePasswordScreen />;

@@ -76,6 +76,27 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+let warmUpRequested = false;
+
+/**
+ * 잠든 백엔드를 미리 깨운다. Render 무료 플랜은 15분 동안 요청이 없으면 서버를
+ * 재우고, 첫 요청에 깨어나는 데 최대 1분쯤 걸린다. 로그인 화면을 보는 동안 이
+ * 호출을 먼저 보내 두면, 사용자가 로그인을 마칠 즈음엔 서버가 이미 깨어 있다.
+ *
+ * - 인증이 필요 없는 /health 만 부른다(로그인 전이라 토큰이 없다).
+ * - `no-cors` 로 보낸다 — 응답 내용은 필요 없고 깨우는 것만 목적이라, 실패하거나
+ *   CORS 설정이 어긋나도 콘솔 오류 없이 조용히 넘어간다. 화면 동작에 영향이 없다.
+ * - 페이지를 연 한 번만 보낸다(개발 모드의 이펙트 이중 실행 포함).
+ */
+export function warmUpBackend(): void {
+  if (warmUpRequested) return;
+  warmUpRequested = true;
+
+  fetch(`${BASE_URL}/health`, { method: "GET", mode: "no-cors", cache: "no-store" }).catch(() => {
+    /* 깨우기는 최선 노력이다. 실패해도 이후 실제 요청이 오류를 그대로 보여준다. */
+  });
+}
+
 /** 실제로 수집된 업종만 돌아온다. 1개뿐이면 데이터가 그만큼이라는 뜻이다. */
 export function fetchBusinessTypes(): Promise<BusinessTypeOut[]> {
   return request<BusinessTypeOut[]>("/business-types");

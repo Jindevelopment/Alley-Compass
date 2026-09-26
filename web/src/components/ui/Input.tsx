@@ -19,7 +19,7 @@ import { useFieldControl } from "./Field";
 
 const inputWrapper = cva(
   [
-    "flex items-center gap-2 w-full",
+    "flex min-w-0 items-center gap-2 w-full",
     "bg-surface-sunken border border-border rounded-md",
     "transition-[border-color,box-shadow] duration-150",
     "focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25",
@@ -30,8 +30,8 @@ const inputWrapper = cva(
   {
     variants: {
       size: {
-        sm: "h-10 px-3 text-xs",
-        md: "h-11 px-3.5 text-sm",
+        sm: "h-11 px-3 text-base sm:h-10 sm:text-xs",
+        md: "h-11 px-3.5 text-base sm:text-sm",
         lg: "h-14 px-4 text-md",
       },
     },

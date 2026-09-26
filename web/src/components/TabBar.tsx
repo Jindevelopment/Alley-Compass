@@ -1,14 +1,14 @@
 import { cn } from "@/lib/cn";
 import { TABS, type Tab } from "@/lib/tabs";
 
-/* 모바일 하단 탭바. md 이상에서는 헤더의 탭이 대신한다.
+/* 모바일·태블릿 하단 탭바. lg 이상에서는 헤더의 탭이 대신한다.
  * 엄지가 닿는 자리에 두고, 아이콘만이 아니라 글자를 항상 함께 보여준다. */
 
 export function TabBar({ tab, onTab }: { tab: Tab; onTab: (tab: Tab) => void }) {
   return (
     <nav
       aria-label="주요 메뉴"
-      className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgb(11_31_51/0.06)] md:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgb(11_31_51/0.06)] lg:hidden"
     >
       {TABS.map(({ id, label, icon: Icon }) => {
         const active = tab === id;

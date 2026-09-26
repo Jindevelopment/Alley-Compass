@@ -97,7 +97,7 @@
   --font-sans: "IBM Plex Sans KR", system-ui, -apple-system, "Malgun Gothic",
                "맑은 고딕", sans-serif;
   /* display  큰 제목·점수 숫자 전용. 화면에서 "브랜드 목소리"가 필요한 곳에만 쓴다. */
-  --font-display: "Noto Serif KR", "Nanum Myeongjo", serif;
+  --font-display: var(--font-sans);
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
 
   /* ── 글자 크기 (본문 14px 기준) ─────────────────── */

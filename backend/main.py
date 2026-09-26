@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -46,6 +47,7 @@ from verification_tools import (  # noqa: E402
     ToolError,
     get_supabase_client,
     load_district_history,
+    load_business_frame,
     load_feature_frame,
     log,
 )
@@ -99,8 +101,6 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-_FRAME_CACHE: pd.DataFrame | None = None
-_FRAME_CACHE_LOADED_AT: float | None = None
 _USE_SUPABASE = os.getenv("BACKEND_USE_SUPABASE", "false").strip().lower() == "true"
 
 
@@ -120,75 +120,117 @@ def _frame_cache_ttl_seconds() -> int:
 
 FRAME_CACHE_TTL_SECONDS = _frame_cache_ttl_seconds()
 
+# 업종 코드 → (그 업종의 최근 분기 행, 적재 시각). 업종을 처음 고를 때 그 업종만 읽어 둔다.
+_BUSINESS_FRAMES: dict[str, tuple[pd.DataFrame, float]] = {}
+_BUSINESS_LOCKS: dict[str, threading.Lock] = {}
+_BUSINESS_LOCKS_GUARD = threading.Lock()
 
-def get_frame(refresh: bool = False) -> pd.DataFrame:
-    """district_features의 "최신 분기 한 개"를 메모리에 캐시해서 매 요청마다
-    다시 읽지 않는다 — /rank·/agents·/report처럼 서울 전체 상권을 한 시점
-    기준으로 비교하는 용도는 이걸로 충분하다.
+
+def _lock_for(business_code: str) -> threading.Lock:
+    with _BUSINESS_LOCKS_GUARD:
+        return _BUSINESS_LOCKS.setdefault(business_code, threading.Lock())
+
+
+def _load_business_or_503(business_code: str) -> pd.DataFrame:
+    """load_business_frame()을 부르고, 실패를 사용자에게 보여줄 503으로 바꾼다."""
+    try:
+        return load_business_frame(business_code, use_supabase=_USE_SUPABASE)
+    except ToolError as exc:
+        # 데이터가 아직 없는 상태(ETL 미실행 · Supabase 미적재).
+        source = "Supabase district_features" if _USE_SUPABASE else "로컬 CSV"
+        log(f"district_features 로드 실패 ({source}): {exc}")
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"분석할 상권 데이터가 아직 없습니다({source}). "
+                "alley_compass_etl.py 로 데이터를 수집하거나, 데이터가 올라간 Supabase 를 쓰려면 "
+                ".env 에 BACKEND_USE_SUPABASE=true 를 설정하세요."
+            ),
+        ) from exc
+    except Exception as exc:  # noqa: BLE001 — Supabase 쪽 일시적 오류(타임아웃 등)
+        # 위 ToolError는 "설정이 안 됐다"는 뜻이고, 이건 "설정은 맞는데 이번
+        # 조회가 일시적으로 실패했다"는 뜻이다(예: Supabase statement timeout).
+        # 500/502를 그대로 흘리면 CORS 헤더도 없이 죽어서 브라우저가 원인
+        # 문구를 못 읽는다 — 503 + 재시도 안내로 감싼다.
+        log(f"district_features 로드 중 일시적 오류: {exc}")
+        raise HTTPException(
+            status_code=503,
+            detail="상권 데이터를 불러오는 중 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+        ) from exc
+
+
+def _refresh_business(business_code: str, stale: pd.DataFrame) -> pd.DataFrame:
+    """TTL이 지난 업종 캐시를 다시 읽는다. 실패하면 기존 캐시로 계속 서비스한다."""
+    lock = _lock_for(business_code)
+    if not lock.acquire(blocking=False):
+        return stale  # 다른 요청이 이미 갱신 중이다 — 기다리지 않고 기존 캐시로 응답한다.
+    try:
+        now = time.monotonic()
+        entry = _BUSINESS_FRAMES.get(business_code)
+        if entry is not None and now - entry[1] <= FRAME_CACHE_TTL_SECONDS:
+            return entry[0]  # 기다리는 사이 다른 요청이 이미 갱신했다.
+        try:
+            fresh = load_business_frame(business_code, use_supabase=_USE_SUPABASE)
+            if fresh.empty:
+                raise ValueError("갱신 결과가 비어 있음")
+        except Exception as exc:  # noqa: BLE001 — 갱신 실패는 기존 캐시로 넘어간다(get_business_frame 설명 참고)
+            # 다음 요청마다 다시 시도하며 Supabase를 두드리지 않도록, 실패해도
+            # 시각은 갱신해 다음 시도까지 최소 TTL만큼 간격을 둔다.
+            _BUSINESS_FRAMES[business_code] = (stale, now)
+            log(f"district_features 캐시 갱신 실패({business_code}), 기존 캐시로 계속 서비스({exc})")
+            return stale
+        _BUSINESS_FRAMES[business_code] = (fresh, now)
+        log(f"district_features 캐시 갱신({business_code}): {len(fresh):,}행")
+        return fresh
+    finally:
+        lock.release()
+
+
+def get_business_frame(business_code: str) -> pd.DataFrame:
+    """한 업종의 "전체 최근 분기" 상권 행을 돌려준다. 처음 요청할 때 그 업종만
+    읽어 메모리에 캐시하고 이후엔 다시 읽지 않는다.
+
+    /rank·/detail·/agents·/report의 계산(랭킹·백분위·경쟁강도 비교 모집단)은
+    전부 같은 업종 안에서만 이뤄진다. 그런데 예전에는 서버가 켜진 뒤 첫 요청에서
+    10개 업종을 통째로(12,499행, 실측 약 25초) 읽었다. 이제 고른 업종만
+    (카페 1,523행, 약 2초) 읽는다. 실제 결과가 예전과 같은지는 업종별로 프레임
+    · /rank · /detail · 팩트시트를 나란히 비교해 확인했다.
 
     데이터 소스는 BACKEND_USE_SUPABASE(.env)로 고른다 — 기본은 로컬 CSV라
     Supabase service_role 권한(grant) 설정 전에도 API가 바로 동작한다.
 
-    18개 분기(14만 행 이상) 전체를 올리지 않는 이유: 실제로 Render 무료
-    플랜(512MB)에서 전체를 캐싱했다가 731MB까지 치솟아 메모리 초과로
-    죽는 걸 확인했다. 과거 분기가 필요한 화면(상권 하나의 추이 차트)은
-    load_district_history()로 그때그때 작게 따로 받는다 — district_detail()
-    참고.
+    캐시를 업종별로 나눠도 메모리 상한은 예전과 같다: 10개 업종을 다 써도 최신
+    분기 한 개뿐이라 22MB 안팎이다. 18개 분기(14만 행 이상) 전체는 올리지 않는다
+    — Render 무료 플랜(512MB)에서 731MB까지 치솟아 죽은 적이 있다. 과거 분기가
+    필요한 상권 추이 차트는 load_district_history()로 따로 받는다.
 
-    캐시는 그냥 두면 프로세스가 사는 동안 영원히 안 바뀐다(예전엔 실제로
-    그랬다) — alley_compass_etl.py로 새 분기를 Supabase에 올려도, 서버를
-    수동 재시작하기 전까진 화면에 반영되지 않았다. Render 무료 플랜은 15분
-    유휴면 재워서 우연히 매번 새로 읽혔을 뿐, 유료 플랜으로 올리거나
-    트래픽이 끊이지 않으면 이 문제가 그대로 드러난다. 그래서 캐시가
-    FRAME_CACHE_TTL_SECONDS(기본 6시간)보다 오래됐으면 다음 요청에서
-    자동으로 다시 읽는다. 갱신이 실패해도(Supabase 일시 오류 등) 이미 있는
-    캐시로 계속 서비스한다 — 캐시가 몇 시간 더 오래된 것과, 있던 서비스가
-    아예 죽는 것 중 후자가 훨씬 나쁘다.
+    캐시는 FRAME_CACHE_TTL_SECONDS(기본 6시간)가 지나면 다음 요청에서 그 업종만
+    다시 읽는다. 갱신이 실패해도(Supabase 일시 오류 등) 기존 캐시로 계속
+    서비스한다 — 몇 시간 더 오래된 데이터가 서비스가 죽는 것보다 훨씬 낫다.
+    같은 업종을 동시에 처음 요청해도 한 번만 읽는다(업종별 잠금).
     """
-    global _FRAME_CACHE, _FRAME_CACHE_LOADED_AT
-    now = time.monotonic()
+    code = str(business_code)
+    if code not in set(get_business_types()["business_code"].astype(str)):
+        raise HTTPException(status_code=404, detail=f"업종 코드 '{code}'에 해당하는 데이터가 없습니다.")
 
-    if _FRAME_CACHE is None or refresh:
-        try:
-            _FRAME_CACHE = load_feature_frame(use_supabase=_USE_SUPABASE, latest_only=_USE_SUPABASE)
-        except ToolError as exc:
-            # 데이터가 아직 없는 상태(ETL 미실행 · Supabase 미적재).
-            source = "Supabase district_features" if _USE_SUPABASE else "로컬 CSV"
-            log(f"district_features 로드 실패 ({source}): {exc}")
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    f"분석할 상권 데이터가 아직 없습니다({source}). "
-                    "alley_compass_etl.py 로 데이터를 수집하거나, 데이터가 올라간 Supabase 를 쓰려면 "
-                    ".env 에 BACKEND_USE_SUPABASE=true 를 설정하세요."
-                ),
-            ) from exc
-        except Exception as exc:  # noqa: BLE001 — Supabase 쪽 일시적 오류(타임아웃 등)
-            # 위 ToolError는 "설정이 안 됐다"는 뜻이고, 이건 "설정은 맞는데 이번
-            # 조회가 일시적으로 실패했다"는 뜻이다(예: Supabase statement timeout).
-            # 500/502를 그대로 흘리면 CORS 헤더도 없이 죽어서 브라우저가 원인
-            # 문구를 못 읽는다 — 503 + 재시도 안내로 감싼다.
-            log(f"district_features 로드 중 일시적 오류: {exc}")
-            raise HTTPException(
-                status_code=503,
-                detail="상권 데이터를 불러오는 중 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
-            ) from exc
-        _FRAME_CACHE_LOADED_AT = now
-        log(f"district_features 로드: {len(_FRAME_CACHE):,}행 (source={'supabase' if _USE_SUPABASE else 'csv'})")
-    elif _FRAME_CACHE_LOADED_AT is not None and now - _FRAME_CACHE_LOADED_AT > FRAME_CACHE_TTL_SECONDS:
-        try:
-            fresh = load_feature_frame(use_supabase=_USE_SUPABASE, latest_only=_USE_SUPABASE)
-        except Exception as exc:  # noqa: BLE001 — 갱신 실패는 기존 캐시로 넘어간다(위 설명 참고)
-            # 다음 요청마다 다시 시도하며 Supabase를 두드리지 않도록, 실패해도
-            # 시각은 갱신해 다음 시도까지 최소 TTL만큼 간격을 둔다.
-            _FRAME_CACHE_LOADED_AT = now
-            log(f"district_features 캐시 갱신 실패, 기존 캐시로 계속 서비스({exc})")
-        else:
-            _FRAME_CACHE = fresh
-            _FRAME_CACHE_LOADED_AT = now
-            log(f"district_features 캐시 갱신: {len(_FRAME_CACHE):,}행")
+    entry = _BUSINESS_FRAMES.get(code)
+    if entry is not None:
+        frame, loaded_at = entry
+        if time.monotonic() - loaded_at <= FRAME_CACHE_TTL_SECONDS:
+            return frame
+        return _refresh_business(code, frame)
 
-    return _FRAME_CACHE
+    with _lock_for(code):
+        entry = _BUSINESS_FRAMES.get(code)  # 기다리는 사이 다른 요청이 읽었을 수 있다.
+        if entry is not None:
+            return entry[0]
+        frame = _load_business_or_503(code)
+        if frame.empty:
+            # 업종 표에는 있지만 최근 분기 행이 하나도 없다. 캐시하지 않는다.
+            raise HTTPException(status_code=404, detail=f"업종 코드 '{code}'에 해당하는 데이터가 없습니다.")
+        _BUSINESS_FRAMES[code] = (frame, time.monotonic())
+        log(f"district_features 로드({code}): {len(frame):,}행 (source={'supabase' if _USE_SUPABASE else 'csv'})")
+        return frame
 
 
 _BUSINESS_TYPES_CACHE: pd.DataFrame | None = None
@@ -197,9 +239,9 @@ _BUSINESS_TYPES_CACHE: pd.DataFrame | None = None
 def get_business_types(refresh: bool = False) -> pd.DataFrame:
     """business_code/business_name 목록만 필요할 때 쓴다.
 
-    Supabase 모드에서는 business_types 테이블(현재 6행)만 직접 조회한다.
-    이 목록 하나 뽑자고 district_features(10만 행 이상)를 통째로 캐싱하는
-    get_frame()을 부를 이유가 없다 — 대량 테이블 조회는 그 자체로 느리고
+    Supabase 모드에서는 business_types 테이블(현재 10행)만 직접 조회한다.
+    이 목록 하나 뽑자고 district_features(10만 행 이상)를 읽을 이유가 없다 —
+    대량 테이블 조회는 그 자체로 느리고
     (Render 무료 플랜의 제한된 CPU에서는 Supabase statement timeout까지
     난 적이 있다), /business-types·/parse-condition처럼 자주·가볍게 불리는
     엔드포인트를 매번 그 비용에 묶어 둘 필요가 없다.
@@ -214,7 +256,7 @@ def get_business_types(refresh: bool = False) -> pd.DataFrame:
             rows = supabase.table("business_types").select("business_code,business_name").execute().data or []
             _BUSINESS_TYPES_CACHE = pd.DataFrame(rows)
         else:
-            _BUSINESS_TYPES_CACHE = get_frame()[["business_code", "business_name"]]
+            _BUSINESS_TYPES_CACHE = load_feature_frame(use_supabase=False)[["business_code", "business_name"]]
         _BUSINESS_TYPES_CACHE = (
             _BUSINESS_TYPES_CACHE.dropna().drop_duplicates().sort_values("business_name").reset_index(drop=True)
         )
@@ -389,11 +431,12 @@ def parse_condition_endpoint(
 
 @app.get("/districts")
 def districts(
-    business_code: str | None = None,
+    business_code: str,
     _user: CurrentUser = Depends(require_user),
 ) -> list[dict]:
-    df = get_frame()
-    scope = df if business_code is None else df[df["business_code"] == business_code]
+    """한 업종의 상권 목록. 업종 없이 전체를 돌려주던 옛 동작은 없앴다 — 업종별로만
+    읽어 두기 때문이고, 웹 화면은 이 엔드포인트를 쓰지 않는다."""
+    scope = get_business_frame(business_code)
     rows = scope[["district_code", "district_name"]].dropna().drop_duplicates().sort_values("district_code")
     return rows.to_dict(orient="records")
 
@@ -401,7 +444,7 @@ def districts(
 @app.post("/rank", response_model=RankResponse)
 def rank(req: RankRequest, user: CurrentUser = Depends(require_user)) -> RankResponse:
     """PRD §16 개인화 Ranking. 서울 전체(해당 업종 데이터가 있는 상권 전부)를 재랭킹한다."""
-    df = get_frame()
+    df = get_business_frame(req.business_code)
     started = time.monotonic()
     try:
         ranked, as_of = rank_districts(df, req.business_code, age=req.age, character=req.character, priority=req.priority)
@@ -460,7 +503,7 @@ def district_detail(
     그때그때 작게 조회)를 분리해서 build_detail()에 같이 넘긴다 — 추이
     차트만 과거 분기가 필요하고, 나머지 진단은 최신 분기 비교로 충분하다.
     """
-    df = get_frame()
+    df = get_business_frame(business_code)
     history = load_district_history(district_code, business_code, use_supabase=_USE_SUPABASE)
     try:
         return DetailResponse(**build_detail(df, history, district_code, business_code))
@@ -480,7 +523,7 @@ def district_agents(
     엔드포인트로 둔 이유다.
     """
     _charge_or_429("agent", user.user_id, 2, AGENT_CREDIT_LIMIT_PER_HOUR)
-    df = get_frame()
+    df = get_business_frame(req.business_code)
     biz_rows = df[df["business_code"] == req.business_code]
     row = biz_rows[biz_rows["district_code"] == str(district_code)]
     if row.empty:
@@ -560,7 +603,7 @@ def report(req: ReportRequest, user: CurrentUser = Depends(require_user)) -> Res
             ),
         ) from exc
 
-    df = get_frame()
+    df = get_business_frame(req.business_code)
     try:
         ranked, as_of = rank_districts(df, req.business_code, age=req.age, character=req.character, priority=req.priority)
     except ValueError as exc:

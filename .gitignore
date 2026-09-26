@@ -21,6 +21,9 @@ env/
 alley_compass_etl/data/raw/
 alley_compass_etl/data/processed/
 
+# ── EDA 원본 덤프 (스크립트 재실행으로 재생성, 용량 큼) ──
+DB_EDA/district_features_raw.csv
+
 # ── 로컬 도구 상태 ──────────────────────────────────
 .claude/
 

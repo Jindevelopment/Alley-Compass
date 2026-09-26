@@ -94,7 +94,7 @@ function RankRow({
       type="button"
       onClick={onSelect}
       aria-label={`${r.rank}위 ${r.district_name}, 생존 안정성 ${score}점. 상세 지표 열기`}
-      className="group rounded-2xl px-4 py-4"
+      className="group rounded-2xl px-5 py-5 sm:p-6"
     >
       <div className="flex items-center gap-3.5">
         <span
@@ -110,7 +110,7 @@ function RankRow({
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-lg font-semibold leading-snug tracking-[-0.01em] text-fg">
+          <p className="text-lg font-semibold leading-snug tracking-[-0.01em] text-fg">
             {r.district_name}
           </p>
           {r.gu_name ? <p className="text-sm text-fg-muted">{r.gu_name}</p> : null}

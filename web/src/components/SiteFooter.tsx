@@ -7,7 +7,7 @@
 export function SiteFooter() {
   return (
     <footer className="mt-auto border-t border-border bg-surface">
-      <div className="mx-auto flex max-w-[86rem] flex-col gap-2 px-4 pb-24 pt-5 sm:px-6 md:pb-5">
+      <div className="mx-auto flex max-w-[86rem] flex-col gap-2 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 lg:pb-5">
         <p className="text-2xs leading-relaxed text-fg-muted">
           이 서비스의 점수는 공개 데이터를 종합한 <b className="font-medium text-fg-body">참고
           지표</b>이며, 특정 점포의 성공이나 생존을 보장하지 않습니다. 상권 단위 분석이므로 개별

@@ -44,13 +44,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 명령어
 
-모든 Python 명령은 `alley_compass_etl/`에서 실행한다 (`--data-dir` 기본값이 cwd 기준
-`data/`이고, `verification_tools`가 `alley_compass_etl` 모듈을 import한다).
+가상환경은 저장소 루트의 `.venv` 하나를 백엔드·ETL·ML이 같이 쓴다(`backend/main.py`가
+`alley_compass_etl`을 import하므로 두 requirements를 같이 설치한다). ETL 명령은
+`alley_compass_etl/`에서 실행한다 (`--data-dir` 기본값이 cwd 기준 `data/`이고,
+`verification_tools`가 `alley_compass_etl` 모듈을 import한다).
 
 ```bash
-python -m venv .venv && .venv/Scripts/activate   # Windows
-pip install -r requirements.txt
-cp .env.example .env    # SEOUL_API_KEY / SUPABASE_URL / SUPABASE_SECRET_KEY
+# 저장소 루트에서 처음 한 번
+python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r backend/requirements.txt -r alley_compass_etl/requirements.txt
+cp alley_compass_etl/.env.example alley_compass_etl/.env   # SEOUL_API_KEY / SUPABASE_URL / SUPABASE_SECRET_KEY …
+cd alley_compass_etl
 
 # 스모크 테스트: 1분기 × 1업종, 업로드 없이 로컬 CSV까지만
 python alley_compass_etl.py --start-quarter 20251 --end-quarter 20251 \
@@ -66,7 +70,14 @@ python alley_compass_etl.py ... --refresh     # RAW CSV 캐시 무시하고 재�
 python verification_tools.py
 python verification_tools.py --district-code 3120014 --business-code CS100010
 python verification_tools.py --supabase       # 로컬 CSV 대신 Supabase에서 로드
+
+python district_geo.py --upload               # 상권 좌표·구·면적 (지도용, v1.4 패치 선행)
 ```
+
+백엔드(가상환경 활성화 후 `cd backend && uvicorn main:app --reload --port 8000`)와 모델 학습
+(`cd ml && python train.py …`)은 `backend/README.md`, `ml/README.md`를 본다.
+macOS에서 LightGBM을 로드하려면 `brew install libomp`가 필요하다 — 없으면 휴리스틱으로
+**조용히** 폴백하므로 `/health`의 `model_version`으로 확인한다.
 
 웹 프론트는 `web/`에 있다 (React 19 + TypeScript + Vite + Tailwind 4 + Radix).
 backend가 :8000에 떠 있어야 화면이 동작한다.
@@ -81,8 +92,8 @@ npm --prefix web run typecheck  # 타입만 검사
 `docs/prototype-v0.html`은 React로 이식되기 전의 원본 프로토타입이다. 디자인 레퍼런스로
 남겨둔 것이며 앱의 일부가 아니다 — 화면을 고칠 때는 `web/` 쪽만 수정한다.
 
-테스트 프레임워크·린터 설정은 없다. 현재 회귀 확인 수단은 두 Python CLI의 데모 실행,
-ETL이 출력하는 DATA QUALITY REPORT, `npm --prefix web run build`(타입 검사 포함)다.
+테스트 프레임워크·린터 설정은 없다. 현재 회귀 확인 수단은 Python CLI 데모 실행, ETL이 출력하는 DATA QUALITY REPORT,
+`npm --prefix web run build`(타입 검사 포함), 백엔드는 `cd backend && python -c "import main"`다.
 백엔드 집계를 고쳤다면 합성 프레임을 만들어 `build_detail()`을 직접 호출해보는 편이 빠르다 —
 분기 1개·컬럼 결측·`store_count=0` 같은 경계를 실데이터 없이 훑을 수 있다.
 
@@ -127,7 +138,7 @@ Agent 체인을 붙일 때 이 두 함수가 접합점이다.
 predictions`는 anon 읽기 공개, 개인 세션 계열 5개 테이블(`search_sessions` 이하)은 anon
 revoke + FastAPI가 service_role로 대행. 로그인 사용자(`authenticated`)는 본인 기록
 select만 가능하다 — 쓰기 정책은 v1.3 패치에서 제거했다(FastAPI 우회 방지).
-v1.3은 `profiles`(가입 트리거 `handle_new_user`)도 추가한다. 패치는 파일 끝에
+v1.3은 `profiles`(가입 트리거 `handle_new_user`)를, v1.4는 상권 좌표용 `area_m2`를 추가한다. 패치는 파일 끝에
 섹션으로 붙이고, 그 섹션만 따로 실행해도 되게 멱등하게 쓴다.
 
 `backend/auth.py` — Supabase JWT 검증(`require_user`). 신형 프로젝트는 JWKS(ES256/RS256),
@@ -143,8 +154,11 @@ Claude를 부르지 않으므로 과금이 없다. 백분위는 `verification_to
 사용자별 1시간 크레딧 한도를 건다. 로그인만으로는 반복 호출을 못 막아서인데,
 메모리 기반이라 인스턴스 하나에서만 유효하다(수평 확장 시 Redis 등으로 교체 필요).
 
-`backend/main.py`의 `get_frame()`은 `district_features`를 프로세스 메모리에 캐시하고
-`FRAME_CACHE_TTL_SECONDS`(기본 6시간)마다 자동으로 다시 읽는다. ETL로 새 분기를
+`backend/main.py`의 `get_business_frame(업종코드)`는 그 업종의 최근 분기 행만 Supabase에서 읽어
+프로세스 메모리에 캐시한다(처음 그 업종을 고를 때 한 번). 랭킹·백분위·경쟁강도 비교는 전부 같은
+업종 안에서만 하므로 다른 업종 행이 필요 없다 — 새 계산을 추가할 때도 이 전제를 깨지 않는다
+(다른 업종 행이 필요해지면 캐시 구조부터 다시 본다). `FRAME_CACHE_TTL_SECONDS`(기본 6시간)마다
+그 업종만 자동으로 다시 읽고, 실패하면 기존 캐시로 계속 서비스한다. ETL로 새 분기를
 Supabase에 올려도 이 시간 전엔 화면에 안 보인다 — 즉시 반영하려면 서버를 재시작한다.
 
 `web/` — React + TypeScript 프론트. 상세는 `web/README.md`. 요점만:
@@ -180,7 +194,7 @@ Supabase에 올려도 이 시간 전엔 화면에 안 보인다 — 즉시 반�
 - **없는 데이터를 만들어내지 않는다.** 5종 데이터셋에 상권 면적이 없으므로
   `competition_density`(면적 기반 밀도) 컬럼은 NULL로 둔다. 경쟁강도는 면적이 필요 없는
   **점포당 배후수요** `= (유동+상주+직장) / store_count`로 계산한다 — 클수록 경쟁 여유이며,
-  점포수 비율과 방향이 반대다. 이 정의는 세 곳이 공유하므로 한쪽만 바꾸면 안 된다:
+  점포수 비율과 방향이 반대다. 이 정의는 네 곳이 공유하므로 한쪽만 바꾸면 안 된다:
   ETL의 `extra_features.demand_per_store`, `verification_tools.competition_density()`,
   `backend/scoring.py`의 `_competition_score()`, `backend/detail.py`의 `_competition_frame()`.
   보증금/임대료는 여전히 미보유라 `budget_validator`는 `verified_by_data=False`를 반환하고,

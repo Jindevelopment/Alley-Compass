@@ -8,8 +8,7 @@ import { ThemeToggle } from "./ThemeToggle";
 /* 상단 바 — 브랜드, 주요 탭, 계정.
  *
  * 탭은 화면 폭이 넓을 때만 여기에 두고, 좁으면 아래 TabBar 로 옮긴다
- * (엄지가 닿는 자리). 첫 조건을 받기 전(온보딩)에는 탭이 갈 곳이 없으므로
- * showTabs=false 로 숨긴다. */
+ * (엄지가 닿는 자리). 업종 목록이 준비되면 온보딩 중에도 탭을 보여준다. */
 
 export interface AppHeaderProps {
   tab: Tab;
@@ -19,8 +18,8 @@ export interface AppHeaderProps {
 
 export function AppHeader({ tab, onTab, showTabs }: AppHeaderProps) {
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-surface">
-      <div className="mx-auto flex h-[4.25rem] max-w-[92rem] items-center gap-2 px-4 sm:px-6">
+    <header className="sticky top-0 z-30 border-b border-border-subtle bg-surface/95 backdrop-blur-xl">
+      <div className="mx-auto flex h-[4.5rem] max-w-[80rem] items-center gap-2 px-4 sm:px-8">
         <a
           href="/"
           onClick={(e) => {
@@ -28,15 +27,15 @@ export function AppHeader({ tab, onTab, showTabs }: AppHeaderProps) {
             e.preventDefault();
             onTab("recommend");
           }}
-          className="mr-4 flex items-center gap-2.5 rounded-md lg:mr-8"
+          className="flex min-w-0 shrink-0 items-center gap-2 rounded-md lg:mr-4"
           aria-label="골목 컴퍼스 — 추천 탭으로"
         >
           <LogoMark size={36} />
-          <Wordmark className="text-xl" />
+          <Wordmark className="text-md sm:text-xl" />
         </a>
 
         {showTabs ? (
-          <nav aria-label="주요 메뉴" className="hidden h-full items-center md:flex">
+          <nav aria-label="주요 메뉴" className="hidden h-full items-center lg:flex">
             {TABS.map(({ id, label }) => {
               const active = tab === id;
               return (
@@ -60,7 +59,7 @@ export function AppHeader({ tab, onTab, showTabs }: AppHeaderProps) {
           </nav>
         ) : null}
 
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
           <ThemeToggle />
           <span aria-hidden="true" className="h-5 w-px bg-border" />
           <AccountMenu />

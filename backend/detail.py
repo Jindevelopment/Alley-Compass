@@ -370,7 +370,7 @@ def build_detail(
     불러도 과금되지 않는다(근거 문장 생성만 /agents 로 분리돼 있다).
 
     df와 history는 용도가 다르다.
-      df      서울 전체 상권의 "최신 분기 한 개"(get_frame() 캐시) —
+      df      이 업종의 서울 전체 상권 "최신 분기 한 개"(get_business_frame() 캐시) —
               잠재고객·경쟁강도·영업환경처럼 다른 상권과 비교하는 데 쓴다.
       history 이 상권×업종 하나의 전체 분기 이력(verification_tools.
               load_district_history()로 그때그때 따로 조회) — 추이

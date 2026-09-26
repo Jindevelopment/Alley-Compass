@@ -19,8 +19,8 @@ export function RankingFactors({ breakdown }: { breakdown: ScoreBreakdown }) {
         const value = breakdown[key];
 
         return (
-          <div key={key} className="grid grid-cols-[11rem_1fr_4rem] items-center gap-3">
-            <span className="text-xs text-fg-muted">{label}</span>
+          <div key={key} className="grid grid-cols-[minmax(0,1fr)_4rem] items-center gap-x-3 gap-y-2 sm:grid-cols-[11rem_minmax(0,1fr)_4rem]">
+            <span className="col-span-2 text-xs text-fg-muted sm:col-span-1">{label}</span>
 
             {value === null || value === undefined ? (
               <>

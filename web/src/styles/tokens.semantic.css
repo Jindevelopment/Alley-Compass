@@ -66,8 +66,8 @@
   --score-mid: var(--teal-400);
   --score-low: var(--rust-500);
   --focus-ring: var(--navy-400);
-  --elevation-sm: 0 1px 2px rgb(11 31 51 / 0.06);
-  --elevation-md: 0 1px 2px rgb(11 31 51 / 0.06), 0 8px 24px -6px rgb(11 31 51 / 0.10);
+  --elevation-sm: 0 2px 8px rgb(11 31 51 / 0.025);
+  --elevation-md: 0 4px 24px rgb(11 31 51 / 0.045);
   --elevation-lg: 0 2px 4px rgb(11 31 51 / 0.08), 0 16px 40px -8px rgb(11 31 51 / 0.20);
   --kakao: var(--kakao-yellow);
   --kakao-fg: rgb(0 0 0 / 0.85);

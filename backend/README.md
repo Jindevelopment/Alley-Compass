@@ -22,8 +22,9 @@ cp ../alley_compass_etl/.env.example ../alley_compass_etl/.env   # 처음 한 �
 uvicorn main:app --reload --port 8000
 ```
 
-다음부터 백엔드만 다시 띄울 때는 가상환경 활성화 후 `cd backend && uvicorn main:app
---reload --port 8000`이면 된다.
+다음부터 백엔드만 다시 띄울 때는 저장소 루트에서 `source .venv/bin/activate`로 가상환경을
+켠 뒤 `cd backend && uvicorn main:app --reload --port 8000`이면 된다. 새 터미널을 열면
+가상환경이 꺼져 있으니 매번 켠다 — 안 켜면 `command not found: uvicorn`이 나온다.
 
 기본은 로컬 CSV(`alley_compass_etl/data/processed/district_features_debug.csv`)를
 읽는다. Supabase로 전환하려면 `alley_compass_etl/.env`에
@@ -35,7 +36,23 @@ BACKEND_USE_SUPABASE=true
 를 추가한다 (단, `db/schema_v1.1.sql`의 v1.2 패치 — `service_role` GRANT —
 가 먼저 Supabase에 적용돼 있어야 한다).
 
-http://localhost:8000/docs 에서 Swagger UI로 바로 테스트 가능.
+http://localhost:8000/docs 에서 Swagger UI로 바로 테스트 가능(로그인 토큰 필요).
+
+### 환경변수
+
+전부 `alley_compass_etl/.env`에 둔다. 설명은 `.env.example`에 주석으로 있다.
+
+| 변수 | 용도 |
+|---|---|
+| `SUPABASE_URL` · `SUPABASE_SECRET_KEY` | DB 조회 · 로그인 토큰 검증 (서버 전용 키) |
+| `SUPABASE_JWT_SECRET` | 구형(HS256) 프로젝트만 |
+| `ANTHROPIC_API_KEY` | `/parse-condition` · `/agents` · `/report` |
+| `BACKEND_USE_SUPABASE` | `true`면 Supabase, 기본은 로컬 CSV |
+| `CORS_ORIGINS` | 허용할 웹 주소(쉼표 구분). 기본 `http://localhost:5173` |
+| `PARSE_CREDIT_LIMIT_PER_HOUR` · `AGENT_CREDIT_LIMIT_PER_HOUR` | Claude 호출 한도 (기본 60 · 40) |
+| `FRAME_CACHE_TTL_SECONDS` | 업종별 상권 데이터 캐시 갱신 주기 (기본 21600 = 6시간) |
+
+운영자가 계정을 직접 만들 때는 `backend/`에서 `python scripts/create_user.py <이메일>`.
 
 ## 배포 (Render)
 
@@ -97,22 +114,32 @@ Python 서버리스 런타임은 `report.py`가 쓰는 WeasyPrint(Pango/Cairo �
 40)로 조정한다. 메모리 기반이라 프로세스(인스턴스) 하나 안에서만 유효하다 —
 여러 워커로 수평 확장하면 Redis 같은 공유 저장소로 옮겨야 한다.
 
-### district_features 캐시 갱신 주기
+### 상권 데이터 캐시 (업종별)
 
-`/rank`·`/agents`·`/report`·`/districts`가 쓰는 상권 데이터(`get_frame()`)는
-서버가 켜질 때 메모리에 한 번 올려두고 계속 재사용한다(요청마다 다시 읽지
-않으려고). 예전엔 이 캐시를 프로세스가 사는 동안 절대 다시 안 읽었는데 —
-`alley_compass_etl.py`로 Supabase에 새 분기를 올려도 서버를 수동 재시작하기
-전엔 화면에 반영되지 않았다. Render 무료 플랜은 15분 유휴면 재워서 우연히
-매번 새로 읽혔을 뿐이다.
+`/rank`·`/detail`·`/agents`·`/report`·`/districts`가 쓰는 상권 데이터는 **업종을 처음 고를 때
+그 업종의 최근 분기만** Supabase에서 읽어 메모리에 둔다(`get_business_frame()`). 이후 같은
+업종 요청은 DB를 부르지 않는다 — 연령·상권 성격·우선순위를 바꿔도 필요한 행은 그대로라서다.
 
-지금은 캐시가 `FRAME_CACHE_TTL_SECONDS`(`.env`, 기본 6시간)보다 오래되면
-다음 요청에서 자동으로 다시 읽는다. 갱신이 실패해도(Supabase 일시 오류 등)
-있던 캐시로 계속 서비스하고, 다음 시도까지는 최소 그 시간만큼 간격을 둔다
-(연속 실패로 매 요청마다 Supabase를 두드리지 않기 위해서). 유료 플랜으로
-올리거나 트래픽이 끊이지 않아 서버가 계속 켜져 있는 배포에서 중요해진다 —
-"새로 올렸는데 왜 안 바뀌지?"를 몇 시간 안에 저절로 해결해 준다. 지금 바로
-반영하고 싶으면 서버를 재시작하면 된다(재시작 즉시 새로 읽는다).
+| | 이전 | 지금 |
+|---|---|---|
+| 서버가 켜진 뒤 첫 `/rank` | 10개 업종 12,499행을 통째로 (약 25초) | 고른 업종만, 예: 카페 1,523행 (약 2초) |
+| 같은 업종에서 조건만 바꿀 때 | 즉시 | 즉시 |
+| 다른 업종을 처음 고를 때 | 즉시 | 그 업종을 처음 읽는 1~2초 |
+
+- **왜 업종만 읽어도 결과가 같은가:** 랭킹·백분위·경쟁강도 비교 모집단은 전부 같은 업종 안에서만
+  계산된다. 10개 업종 전부에서 예전 방식(전체 적재)과 프레임·순위·점수·상세·팩트시트가
+  같음을 확인했다(LightGBM 켠 상태, 점수 차이 0).
+- **기준 분기**는 업종별이 아니라 테이블 전체의 최근 분기다(예전과 같다).
+- **같은 업종을 동시에 처음 요청**해도 DB는 한 번만 읽는다(업종별 잠금).
+- **없는 업종**은 DB를 읽기 전에 404다. `GET /districts`는 업종(`business_code`)이 필수다.
+- **메모리**는 10개 업종을 다 써도 최신 분기 한 개뿐이라 22MB 안팎이다. 18개 분기 전체를
+  올리면 Render 무료 플랜(512MB)에서 죽는다(실측 731MB) — 상권 추이는 `/detail`이 그 상권만 따로 조회한다.
+
+**갱신 주기:** 업종별 캐시가 `FRAME_CACHE_TTL_SECONDS`(`.env`, 기본 6시간)보다 오래되면 다음
+요청에서 **그 업종만** 다시 읽는다. `alley_compass_etl.py`로 새 분기를 올려도 이 시간 안에는
+화면에 안 보인다 — 바로 반영하려면 서버를 재시작한다. 갱신이 실패해도(Supabase 일시 오류 등)
+있던 캐시로 계속 서비스하고, 다음 시도까지는 최소 그 시간만큼 간격을 둔다. 갱신 중인 다른
+요청은 기다리지 않고 기존 캐시로 응답한다.
 
 ### `/report` 사용 예
 
@@ -124,6 +151,13 @@ curl -X POST http://localhost:8000/report \
   -d '{"business_code":"CS100010","budget":5000,"top_k":3}' \
   -o report.pdf
 ```
+
+### macOS에서 LightGBM이 안 불러와질 때
+
+`OSError: ... libomp.dylib ... (no such file)`이 나거나 `/health`의 `model_version`이
+`heuristic-v0`면 OpenMP 런타임이 없는 것이다. `brew install libomp` 후 서버를 재시작한다.
+모델 로드 실패는 예외로 죽지 않고 휴리스틱으로 대체되므로 서버 로그(`[경고] LightGBM 모델
+로드 실패`)에서만 드러난다.
 
 ### macOS에서 PDF가 안 만들어질 때 (WeasyPrint)
 

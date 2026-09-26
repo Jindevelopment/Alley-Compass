@@ -92,33 +92,31 @@ const TRUST = ["데이터 근거", "AI 검증", "위험까지 솔직하게"];
 
 function IntroPanel() {
   return (
-    <section className="relative flex flex-col overflow-hidden bg-[linear-gradient(160deg,var(--brand-abyss)_0%,var(--brand-deep)_60%,var(--brand-glow)_100%)] px-6 py-8 text-brand-fg sm:px-10 lg:min-h-screen lg:px-[4.5rem] lg:py-14">
-      <CompassArt className="absolute -bottom-40 -right-40 hidden w-[46rem] lg:block" />
+    <section className="relative flex flex-col overflow-hidden bg-[linear-gradient(160deg,var(--brand-abyss)_0%,var(--brand-deep)_60%,var(--brand-glow)_100%)] px-6 py-7 text-brand-fg sm:px-10 lg:min-h-screen lg:px-[4.5rem] lg:py-14">
+      <CompassArt className="absolute -bottom-40 -right-40 hidden w-[46rem] opacity-20 lg:block" />
 
       <div className="relative flex items-center gap-3">
         <LogoMark size={44} tone="onBrand" />
         <Wordmark tone="onBrand" className="text-xl" />
       </div>
 
-      <div className="relative mt-10 lg:mt-auto">
-        <span aria-hidden="true" className="block h-[3px] w-12 rounded-full bg-brand-gold" />
-        <h1 className="mt-6 font-display text-3xl font-bold leading-[1.36] tracking-[-0.02em] text-brand-fg lg:text-4xl">
-          창업하기 전에,
+      <div className="relative mt-5 lg:my-auto lg:py-16">
+        <p className="hidden text-sm font-semibold text-brand-gold lg:block">내 가게를 위한 첫 번째 선택</p>
+        <h1 className="mt-3 font-display text-2xl font-bold leading-[1.36] tracking-[-0.035em] text-brand-fg lg:text-4xl">
+          시작하는 사장님께,
           <br />
-          골목의 생존 확률부터
-          <br />
-          확인하세요.
+          잘 맞는 골목을.
         </h1>
-        <p className="mt-5 text-md leading-relaxed text-brand-fg-muted lg:text-lg">
-          서울 골목상권을 분석해서 나에게 맞는
-          <br className="hidden sm:inline" /> 업종과 자리를 추천해 드려요.
+        <p className="mt-4 text-sm leading-relaxed text-brand-fg-muted lg:text-lg">
+          어디에 가게를 열지 막막할 때,<br className="hidden sm:inline" />
+          서울 상권 데이터로 차근차근 찾아보세요.
         </p>
 
-        <ul className="mt-6 flex flex-wrap gap-2">
+        <ul className="mt-6 hidden flex-wrap gap-2 lg:flex">
           {TRUST.map((t) => (
             <li
               key={t}
-              className="inline-flex items-center gap-1.5 rounded-full border border-brand-fg/20 bg-brand-fg/10 px-3.5 py-1.5 text-xs font-medium text-brand-fg"
+              className="inline-flex items-center gap-1.5 rounded-full border border-brand-fg/20 bg-brand-fg/10 px-3.5 py-2 text-xs font-medium text-brand-fg"
             >
               <Check aria-hidden="true" className="size-3.5" strokeWidth={2.6} />
               {t}
@@ -135,7 +133,7 @@ function IntroPanel() {
         <p className="absolute -top-6 left-0 text-2xs font-medium text-brand-fg-muted">
           화면 예시
         </p>
-        <div className="absolute left-0 top-0 flex w-[21.5rem] items-center gap-3.5 rounded-2xl border border-brand-fg/20 bg-brand-fg/10 p-4 shadow-lg backdrop-blur-md">
+        <div className="absolute left-0 top-0 flex w-[21.5rem] items-center gap-3.5 rounded-2xl border border-brand-fg/20 bg-brand-fg/10 p-5 shadow-sm backdrop-blur-md">
           <span className="flex size-9 items-center justify-center rounded-full bg-brand-gold font-display font-bold text-brand-abyss">
             1
           </span>
@@ -145,7 +143,7 @@ function IntroPanel() {
           </div>
           <ScoreRing score={87} size={56} stroke={5} tone="onBrand" />
         </div>
-        <div className="absolute left-28 top-[5.75rem] w-72 rounded-2xl border border-brand-fg/20 bg-brand-fg/10 p-4 shadow-lg backdrop-blur-md">
+        <div className="absolute left-16 top-[5.75rem] w-72 rounded-2xl border border-brand-fg/20 bg-brand-fg/10 p-4 shadow-sm backdrop-blur-md">
           <p className="inline-flex items-center gap-1 rounded-full bg-positive-subtle px-2.5 py-0.5 text-xs font-medium text-positive-text">
             <Check aria-hidden="true" className="size-3.5" strokeWidth={2.4} />
             데이터로 확인됨

@@ -73,7 +73,7 @@ export function AskTab({
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
       <section
         aria-label="대화"
-        className="flex min-h-[32rem] flex-col rounded-2xl border border-border bg-surface shadow-sm lg:h-[calc(100dvh-9.5rem)]"
+        className="flex min-w-0 flex-col rounded-2xl border border-border bg-surface shadow-sm lg:h-[calc(100dvh-9.5rem)] lg:min-h-[32rem]"
       >
         <div className="border-b border-border px-5 py-5 sm:px-8">
           <h1 className="font-display text-2xl font-bold tracking-[-0.02em] text-fg">
@@ -92,7 +92,7 @@ export function AskTab({
               이하로 20~30대가 많이 오는 곳”</b>
             </>
           }
-          className="min-h-0 flex-1 px-5 py-6 sm:px-8"
+          className="max-h-[45dvh] min-h-32 flex-1 px-5 py-6 sm:px-8 lg:max-h-none lg:min-h-0"
         />
 
         <div className="border-t border-border px-5 pb-5 pt-4 sm:px-8">
@@ -128,7 +128,7 @@ export function AskTab({
             <Button
               variant="solid"
               size="lg"
-              className="aspect-square px-0"
+              className="w-14 shrink-0 px-0"
               disabled={busy || !draft.trim()}
               onClick={submit}
               aria-label="보내기"
@@ -156,8 +156,8 @@ export function AskTab({
               key={label}
               className="flex items-baseline gap-3 border-t border-border-subtle py-3.5"
             >
-              <dt className="w-28 shrink-0 text-sm text-fg-muted">{label}</dt>
-              <dd className="flex-1 text-md font-semibold text-fg">{value}</dd>
+              <dt className="w-24 shrink-0 text-sm text-fg-muted sm:w-28">{label}</dt>
+              <dd className="min-w-0 flex-1 text-md font-semibold text-fg">{value}</dd>
             </div>
           ))}
         </dl>
