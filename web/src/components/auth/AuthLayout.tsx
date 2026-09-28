@@ -88,8 +88,6 @@ export function AuthAlert({
 
 /* ── 왼쪽: 이 서비스가 무엇인가 ────────────────────────────── */
 
-const TRUST = ["데이터 근거", "AI 검증", "위험까지 솔직하게"];
-
 function IntroPanel() {
   return (
     <section className="relative flex flex-col overflow-hidden bg-[linear-gradient(160deg,var(--brand-abyss)_0%,var(--brand-deep)_60%,var(--brand-glow)_100%)] px-6 py-7 text-brand-fg sm:px-10 lg:min-h-screen lg:px-[4.5rem] lg:py-14">
@@ -111,18 +109,6 @@ function IntroPanel() {
           어디에 가게를 열지 막막할 때,<br className="hidden sm:inline" />
           서울 상권 데이터로 차근차근 찾아보세요.
         </p>
-
-        <ul className="mt-6 hidden flex-wrap gap-2 lg:flex">
-          {TRUST.map((t) => (
-            <li
-              key={t}
-              className="inline-flex items-center gap-1.5 rounded-full border border-brand-fg/20 bg-brand-fg/10 px-3.5 py-2 text-xs font-medium text-brand-fg"
-            >
-              <Check aria-hidden="true" className="size-3.5" strokeWidth={2.6} />
-              {t}
-            </li>
-          ))}
-        </ul>
       </div>
 
       {/* 제품 미리보기 — 실제 결과가 아니라 화면 예시다. 값을 지어낸 것이므로 "예시"를 밝힌다. */}
